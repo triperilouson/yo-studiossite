@@ -1,0 +1,33 @@
+[
+    {
+        "name": "RAIN TEE",
+
+        "price": "$120",
+
+        "season": "S2 / BETWEEN WIND AND WATER",
+
+        "images": [
+
+            "assets/s2/shirt1.png",
+
+            "assets/s2/shirt2.png"
+
+        ]
+    },
+
+    {
+        "name": "LITCHEN TEE",
+
+        "price": "$120",
+
+        "season": "S2 / BETWEEN WIND AND WATER",
+
+        "images": [
+
+            "assets/s2/shirt3.png",
+
+            "assets/s2/shirt4.png"
+
+        ]
+    }
+]

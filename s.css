@@ -1,0 +1,94 @@
+.look{
+
+    position:relative;
+
+    height:140vh;
+
+    background:black;
+
+}
+
+.look img{
+
+    position:sticky;
+
+    top:10vh;
+
+    width:100%;
+
+    height:100vh;
+
+    object-fit:contain;
+
+    display:block;
+
+}
+
+.look-info{
+
+    position:fixed;
+
+    left:60px;
+    bottom:80px;
+
+    z-index:100;
+
+    color:white;
+
+    opacity:0;
+
+    transform:translateY(40px);
+
+    transition:
+    opacity 0.9s ease,
+    transform 0.9s ease;
+
+    pointer-events:none;
+
+}
+
+.look-info.visible{
+
+    opacity:1;
+
+    transform:translateY(0);
+
+}
+
+.look-info p{
+
+    font-size:11px;
+
+    letter-spacing:4px;
+
+    opacity:0.5;
+
+    margin-bottom:18px;
+
+}
+
+.look-info h2{
+
+    font-size:76px;
+
+    letter-spacing:-4px;
+
+    margin:0;
+
+    font-weight:600;
+
+}
+
+.look-info span{
+
+    display:block;
+
+    margin-top:24px;
+
+    opacity:0.75;
+
+    font-size:14px;
+
+    letter-spacing:2px;
+
+}

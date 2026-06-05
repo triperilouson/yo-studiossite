@@ -1,0 +1,102 @@
+[
+    {
+        "id":"rain-tee",
+
+        "name":"RAIN TEE",
+
+        "category":"tshirts",
+
+        "price":"$220",
+
+        "season":"S1 / BETWEEN WIND AND WATER",
+
+        "description":"Relaxed oversized silhouette with lace details.",
+
+        "preview":"assets/tshirts/shirt-preview.png",
+
+        "images":[
+
+            "assets/tshirts/shirt1.png",
+
+            "assets/tshirts/shirt3.png",
+
+            "assets/tshirts/shirt3.png"
+
+        ]
+    },
+
+
+    {
+        "id":"litchen-tee",
+
+        "name":"LITCHEN TEE",
+
+        "category":"tshirts",
+
+        "price":"$120",
+
+        "season":"S1 / BETWEEN WIND AND WATER",
+
+        "description":"Relaxed oversized silhouette with lace details.",
+
+        "preview":"assets/tshirts/shirt-preview.png",
+
+        "images":[
+
+            "assets/tshirts/shirt3.png",
+
+            "assets/tshirts/shirt4.png"
+
+        ]
+    },
+
+
+    {
+        "id":"litchen-tee",
+
+        "name":"LITCHEN TEE",
+
+        "category":"tshirts",
+
+        "price":"$120",
+
+        "season":"S1 / BETWEEN WIND AND WATER",
+
+        "description":"Relaxed oversized silhouette with lace details.",
+
+        "preview":"assets/tshirts/shirt-preview.png",
+
+        "images":[
+
+            "assets/tshirts/shirt3.png",
+
+            "assets/tshirts/shirt4.png"
+
+        ]
+    },
+
+
+    {
+        "id":"litchen-pants",
+
+        "name":"LITCHEN pants",
+
+        "category":"pants",
+
+        "price":"$220",
+
+        "season":"S1 / BETWEEN WIND AND WATER",
+
+        "description":"Relaxed oversized silhouette with lace details.",
+
+        "preview":"assets/tshirts/shirt-preview.png",
+
+        "images":[
+
+            "assets/tshirts/shirt3.png",
+
+            "assets/tshirts/shirt4.png"
+
+        ]
+    }
+]
