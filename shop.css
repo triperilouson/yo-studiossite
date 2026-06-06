@@ -521,6 +521,9 @@ body{
 
     }
 
+
+
+
     .product-overlay h1{
 
         font-size:72px;
@@ -535,6 +538,7 @@ body{
         font-size:58px;
     }
 
+
     .product-description{
 
         font-size:14px;
@@ -544,6 +548,11 @@ body{
         margin-bottom:20px;
 
     }
+
+        .buy-button{
+        pointer-events:auto;
+    }
+
 
     .buy-button{
         width:220px;
