@@ -62,3 +62,25 @@ links.forEach(link => {
 
 });
 
+const burger = document.getElementById("burger");
+const mobileMenu = document.getElementById("mobile-menu");
+
+burger.addEventListener("click", () => {
+
+    mobileMenu.classList.toggle("active");
+
+});
+
+const mobileTitles = document.querySelectorAll(".mobile-title");
+
+mobileTitles.forEach(title => {
+
+    title.addEventListener("click", () => {
+
+        const content = title.nextElementSibling;
+
+        content.classList.toggle("open");
+
+    });
+
+});

@@ -49,4 +49,32 @@ function setColumns(columns){
     grid.style.gridTemplateColumns =
     `repeat(${columns}, 1fr)`;
 
+    if(window.innerWidth < 900){
+
+        if(columns == 2){
+            grid.style.padding = "140px 20px 40px";
+            grid.style.columnGap = "60px";
+            grid.style.rowGap = "90px";
+        }
+
+        if(columns == 4){
+            grid.style.padding = "140px 10px 40px";
+            grid.style.columnGap = "40px";
+            grid.style.rowGap = "60px";
+        }
+
+        if(columns == 6){
+            grid.style.padding = "140px 5px 40px";
+            grid.style.columnGap = "30px";
+            grid.style.rowGap = "45px";
+        }
+
+        if(columns == 8){
+            grid.style.padding = "140px 0px 40px";
+            grid.style.columnGap = "20px";
+            grid.style.rowGap = "30px";
+        }
+
+    }
+
 }
