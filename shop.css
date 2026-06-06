@@ -509,3 +509,45 @@ body{
     }
 
 }
+@media(max-width:900px){
+
+    .product-overlay{
+
+        left:20px;
+        right:20px;
+        bottom:20px;
+
+        max-width:none;
+
+    }
+
+    .product-overlay h1{
+
+        font-size:72px;
+
+        line-height:0.9;
+
+        margin-bottom:15px;
+
+    }
+
+    .product-overlay h1{
+        font-size:58px;
+    }
+
+    .product-description{
+
+        font-size:14px;
+
+        line-height:1.6;
+
+        margin-bottom:20px;
+
+    }
+
+    .buy-button{
+        width:220px;
+    }
+
+}
+
