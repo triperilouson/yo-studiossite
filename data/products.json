@@ -21,8 +21,10 @@
             "assets/tshirts/shirt3.png",
 
             "assets/tshirts/shirt3.png"
+        ],
 
-        ]
+        "sizes": ["S", "M", "L", "XL"] 
+
     },
 
 

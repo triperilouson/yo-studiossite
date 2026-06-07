@@ -2,11 +2,7 @@ const params = new URLSearchParams(window.location.search);
 
 const productId = params.get("id");
 
-
-
 let cart = JSON.parse(localStorage.getItem("cart")) || [];
-
-
 
 fetch('./data/products.json')
 
@@ -16,23 +12,13 @@ fetch('./data/products.json')
 
     const product = products.find(p => p.id === productId);
 
-
-
     const gallery = document.getElementById("product-gallery");
-
     const overlay = document.getElementById("product-overlay");
-
     const cartCount = document.getElementById("cart-count");
 
-
-
     if(cartCount){
-
         cartCount.innerText = cart.length;
-
     }
-
-
 
     product.images.forEach(image => {
 
@@ -48,8 +34,6 @@ fetch('./data/products.json')
 
     });
 
-
-
     overlay.innerHTML = `
 
         <p>${product.season}</p>
@@ -64,6 +48,20 @@ fetch('./data/products.json')
 
         </div>
 
+        <div class="sizes">
+
+            ${product.sizes.map(size => `
+
+                <button class="size-btn">
+
+                    ${size}
+
+                </button>
+
+            `).join("")}
+
+        </div>
+
         <button class="buy-button">
 
             ADD TO CART
@@ -72,20 +70,44 @@ fetch('./data/products.json')
 
     `;
 
+    let selectedSize = null;
 
+    document
+    .querySelectorAll(".size-btn")
+    .forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            document
+            .querySelectorAll(".size-btn")
+            .forEach(btn => btn.classList.remove("active"));
+
+            button.classList.add("active");
+
+            selectedSize = button.innerText.trim();
+
+        });
+
+    });
 
     const button = document.querySelector(".buy-button");
 
-
-
     button.addEventListener("click", () => {
 
+        if(!selectedSize){
 
+            alert("SELECT SIZE");
 
-        
-        const existing = cart.find(item => item.id === product.id);
+            return;
 
+        }
 
+        const existing = cart.find(item =>
+
+            item.id === product.id &&
+            item.size === selectedSize
+
+        );
 
         if(existing){
 
@@ -97,34 +119,27 @@ fetch('./data/products.json')
 
                 ...product,
 
+                size:selectedSize,
+
                 quantity:1
 
             });
 
         }
 
-
         localStorage.setItem("cart", JSON.stringify(cart));
 
-
-
         if(cartCount){
-
             cartCount.innerText = cart.length;
-
         }
 
-
-
         button.innerText = "ADDED";
-
-
 
         setTimeout(() => {
 
             button.innerText = "ADD TO CART";
 
-        },1200);
+        }, 1200);
 
     });
 

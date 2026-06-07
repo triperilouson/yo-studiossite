@@ -49,31 +49,91 @@ function setColumns(columns){
     grid.style.gridTemplateColumns =
     `repeat(${columns}, 1fr)`;
 
-    if(window.innerWidth < 900){
+    const names = document.querySelectorAll(".shop-info p");
+    const prices = document.querySelectorAll(".shop-info span");
+    const infos = document.querySelectorAll(".shop-info");
 
-        if(columns == 2){
-            grid.style.padding = "140px 20px 40px";
-            grid.style.columnGap = "45px";
-            grid.style.rowGap = "90px";
-        }
+    if(columns == 2){
 
-        if(columns == 4){
-            grid.style.padding = "140px 10px 40px";
-            grid.style.columnGap = "30px";
-            grid.style.rowGap = "60px";
-        }
+        grid.style.columnGap = "60px";
+        grid.style.rowGap = "120px";
 
-        if(columns == 6){
-            grid.style.padding = "140px 5px 40px";
-            grid.style.columnGap = "22px";
-            grid.style.rowGap = "45px";
-        }
+        infos.forEach(el=>{
+            el.style.marginTop = "24px";
+        });
 
-        if(columns == 8){
-            grid.style.padding = "140px 0px 40px";
-            grid.style.columnGap = "15px";
-            grid.style.rowGap = "30px";
-        }
+        names.forEach(el=>{
+            el.style.fontSize = "18px";
+            el.style.letterSpacing = "4px";
+            el.style.marginBottom = "14px";
+        });
+
+        prices.forEach(el=>{
+            el.style.fontSize = "14px";
+        });
+
+    }
+
+    if(columns == 4){
+
+        grid.style.columnGap = "40px";
+        grid.style.rowGap = "80px";
+
+        infos.forEach(el=>{
+            el.style.marginTop = "18px";
+        });
+
+        names.forEach(el=>{
+            el.style.fontSize = "13px";
+            el.style.letterSpacing = "3px";
+            el.style.marginBottom = "10px";
+        });
+
+        prices.forEach(el=>{
+            el.style.fontSize = "12px";
+        });
+
+    }
+
+    if(columns == 6){
+
+        grid.style.columnGap = "25px";
+        grid.style.rowGap = "50px";
+
+        infos.forEach(el=>{
+            el.style.marginTop = "12px";
+        });
+
+        names.forEach(el=>{
+            el.style.fontSize = "11px";
+            el.style.letterSpacing = "2px";
+            el.style.marginBottom = "8px";
+        });
+
+        prices.forEach(el=>{
+            el.style.fontSize = "10px";
+        });
+
+    }
+
+    if(columns == 8){
+
+        grid.style.columnGap = "15px";
+        grid.style.rowGap = "30px";
+
+        infos.forEach(el=>{
+            el.style.marginTop = "8px";
+        });
+
+        names.forEach(el=>{
+            el.style.fontSize = "9px";
+            el.style.letterSpacing = "1.5px";
+            el.style.marginBottom = "6px";
+        });
+
+        prices.forEach(el=>{
+            el.style.fontSize = "8px";
+        });
 
     }
 

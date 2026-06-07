@@ -48,6 +48,12 @@ function renderCart(){
 
                 <p>${product.name}</p>
 
+                <span>
+                    SIZE — ${product.size}
+                </span>
+
+                <br>
+
                 <span>${product.price}</span>
 
 
