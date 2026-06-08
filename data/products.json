@@ -22,7 +22,7 @@
 
             "assets/tshirts/rainn.png",
 
-            "assets/tshirts/rainol.jpg",
+            "assets/tshirts/rainl.jpg",
 
             "assets/tshirts/rainwomen.jpg",
 
@@ -67,6 +67,8 @@
             "assets/tshirts/lichenmen.png",
 
             "assets/tshirts/sizes34.png"
-        ]
+        ],
+
+        "sizes": ["L", "XL"] 
     }
 ]
