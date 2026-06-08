@@ -6,24 +6,31 @@
 
         "category":"tshirts",
 
-        "price":"$220",
+        "price":"$69",
 
         "season":"S1 / BETWEEN WIND AND WATER",
 
         "description":"Relaxed oversized silhouette with lace details.",
 
-        "preview":"assets/tshirts/shirt-preview.png",
+        "preview":"assets/tshirts/raain.jpg",
 
         "images":[
 
-            "assets/tshirts/shirt1.png",
+            "assets/tshirts/raain.jpg",
 
-            "assets/tshirts/shirt3.png",
+            "assets/tshirts/rainf.png",
 
-            "assets/tshirts/shirt3.png"
+            "assets/tshirts/rainn.png",
+
+            "assets/tshirts/rainn.png",
+
+            "assets/tshirts/rainwomen.jpg",
+
+            "assets/tshirts/rainmen.png"
+
         ],
 
-        "sizes": ["S", "M", "L", "XL"] 
+        "sizes": ["L", "XL"] 
 
     },
 
@@ -35,20 +42,27 @@
 
         "category":"tshirts",
 
-        "price":"$120",
+        "price":"$69",
 
         "season":"S1 / BETWEEN WIND AND WATER",
 
         "description":"Relaxed oversized silhouette with lace details.",
 
-        "preview":"assets/tshirts/shirt-preview.png",
+        "preview":"assets/tshirts/licchen.png",
 
         "images":[
 
-            "assets/tshirts/shirt3.png",
+            "assets/tshirts/licchen.png",
 
-            "assets/tshirts/shirt4.png"
+            "assets/tshirts/lichenf.png",
 
+            "assets/tshirts/lichenl.png",
+
+            "assets/tshirts/lichenn.png",
+
+            "assets/tshirts/lichenwomen.png",
+
+            "assets/tshirts/lichenmen.png"
         ]
     },
 
