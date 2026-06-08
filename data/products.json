@@ -22,11 +22,13 @@
 
             "assets/tshirts/rainn.png",
 
-            "assets/tshirts/rainn.png",
+            "assets/tshirts/rainol.jpg",
 
             "assets/tshirts/rainwomen.jpg",
 
-            "assets/tshirts/rainmen.png"
+            "assets/tshirts/rainmen.png",
+            
+            "assets/tshirts/sizes34.png"
 
         ],
 
@@ -62,57 +64,9 @@
 
             "assets/tshirts/lichenwomen.png",
 
-            "assets/tshirts/lichenmen.png"
-        ]
-    },
+            "assets/tshirts/lichenmen.png",
 
-
-    {
-        "id":"litchen-tee",
-
-        "name":"LITCHEN TEE",
-
-        "category":"tshirts",
-
-        "price":"$120",
-
-        "season":"S1 / BETWEEN WIND AND WATER",
-
-        "description":"Relaxed oversized silhouette with lace details.",
-
-        "preview":"assets/tshirts/shirt-preview.png",
-
-        "images":[
-
-            "assets/tshirts/shirt3.png",
-
-            "assets/tshirts/shirt4.png"
-
-        ]
-    },
-
-
-    {
-        "id":"litchen-pants",
-
-        "name":"LITCHEN pants",
-
-        "category":"pants",
-
-        "price":"$220",
-
-        "season":"S1 / BETWEEN WIND AND WATER",
-
-        "description":"Relaxed oversized silhouette with lace details.",
-
-        "preview":"assets/tshirts/shirt-preview.png",
-
-        "images":[
-
-            "assets/tshirts/shirt3.png",
-
-            "assets/tshirts/shirt4.png"
-
+            "assets/tshirts/sizes34.png"
         ]
     }
 ]
