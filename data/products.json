@@ -28,7 +28,7 @@
 
             "assets/tshirts/rainmen.png",
             
-            "assets/tshirts/sizes34.png"
+            "assets/tshirts/sizes34.jpg"
 
         ],
 
@@ -66,7 +66,7 @@
 
             "assets/tshirts/lichenmen.png",
 
-            "assets/tshirts/sizes34.png"
+            "assets/tshirts/sizes34.jpg"
         ],
 
         "sizes": ["L", "XL"] 
