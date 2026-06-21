@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https: http:; connect-src 'self' http://127.0.0.1:3000 http://localhost:3000; base-uri 'none'; form-action 'self'; frame-ancestors 'none'">
+    <title>YO CONTROL — ADMIN</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div id="admin-shell" class="admin-shell hidden">
+        <aside class="admin-sidebar">
+            <a class="admin-brand" href="index.html"><span>YO</span><small>CONTROL ROOM</small></a>
+            <nav class="admin-nav" aria-label="Administration">
+                <button class="nav-item active" data-view="dashboard" type="button">OVERVIEW <span>01</span></button>
+                <button class="nav-item" data-view="products" type="button">PRODUCTS <span>02</span></button>
+                <button class="nav-item" data-view="orders" type="button">ORDERS <span>03</span></button>
+                <button class="nav-item" data-view="users" type="button">USERS <span>04</span></button>
+                <button class="nav-item" data-view="security" type="button">SECURITY <span>05</span></button>
+                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>06</span></button>
+            </nav>
+            <div class="admin-presence"><i></i><span>SECURE SESSION</span></div>
+        </aside>
+
+        <main class="admin-main">
+            <header class="admin-header">
+                <div><p id="admin-date"></p><h1 id="view-title">OVERVIEW</h1></div>
+                <div class="admin-identity"><span id="admin-email"></span><strong id="admin-role"></strong><button id="admin-logout" type="button">LOGOUT</button></div>
+            </header>
+            <p id="admin-status" class="admin-status" aria-live="polite"></p>
+
+            <section class="admin-view active" data-view-panel="dashboard">
+                <div class="metric-grid">
+                    <article class="metric featured"><span>ONLINE NOW</span><strong id="metric-online">—</strong><small>ACTIVE IN LAST 15 MIN</small></article>
+                    <article class="metric"><span>ACTIVE PRODUCTS</span><strong id="metric-products">—</strong></article>
+                    <article class="metric"><span>AVAILABLE UNITS</span><strong id="metric-units">—</strong></article>
+                    <article class="metric"><span>LOW STOCK</span><strong id="metric-low-stock">—</strong></article>
+                    <article class="metric"><span>PENDING ORDERS</span><strong id="metric-orders">—</strong></article>
+                    <article class="metric"><span>ACTIVE USERS</span><strong id="metric-users">—</strong></article>
+                </div>
+                <div class="dashboard-split">
+                    <article class="admin-panel"><div class="panel-heading"><h2>STORE STATUS</h2><span>LIVE</span></div><div id="store-health" class="health-list"></div></article>
+                    <article class="admin-panel"><div class="panel-heading"><h2>QUICK ACTIONS</h2></div><button class="action-card" data-open-products type="button"><b>＋</b><span>CREATE NEW PRODUCT<small>Images, variants and inventory</small></span></button></article>
+                </div>
+            </section>
+
+            <section class="admin-view" data-view-panel="products">
+                <div class="view-toolbar"><div><h2>PRODUCT CATALOGUE</h2><p>Database-backed collection and inventory.</p></div><button id="open-product-modal" class="primary-action" type="button">＋ ADD PRODUCT</button></div>
+                <div class="filter-row"><input id="product-search" type="search" placeholder="SEARCH NAME, SKU OR CATEGORY"><select id="product-status-filter"><option value="">ALL STATUSES</option><option>ACTIVE</option><option>DRAFT</option><option>INACTIVE</option><option>ARCHIVED</option></select></div>
+                <div id="admin-products" class="product-admin-grid"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="orders">
+                <div class="view-toolbar"><div><h2>ORDER FLOW</h2><p>Payment state is controlled only by verified webhooks.</p></div></div>
+                <div id="admin-orders" class="admin-table"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="users">
+                <div class="view-toolbar"><div><h2>CUSTOMERS & ACCESS</h2><p>Only SUPER_ADMIN can manage administrator roles.</p></div></div>
+                <div id="admin-users" class="admin-table"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="security">
+                <div class="view-toolbar"><div><h2>SECURITY CONTROLS</h2><p>Emergency controls affect backend behaviour immediately.</p></div></div>
+                <article class="admin-panel security-control"><div><h3>PUBLIC REGISTRATION</h3><p>Disable during bot attacks or suspicious registration spikes. Existing users can still sign in.</p></div><label class="switch"><input id="registration-toggle" type="checkbox"><span></span></label></article>
+                <article class="admin-panel"><div class="panel-heading"><h2>SECURITY SIGNALS</h2></div><div id="security-signals" class="health-list"></div></article>
+                <article class="admin-panel"><div class="panel-heading"><h2>ACTIVE ADMIN SESSIONS</h2><button id="revoke-other-sessions" class="secondary-action" type="button">REVOKE OTHER SESSIONS</button></div><div id="admin-sessions" class="health-list"></div></article>
+                <article class="admin-panel security-control"><div><h3>AUTHENTICATOR 2FA</h3><p id="mfa-status">Loading MFA status…</p><pre id="mfa-enrollment" hidden></pre></div><div><button id="mfa-enable" class="secondary-action" type="button">ENABLE 2FA</button><button id="mfa-disable" class="secondary-action" type="button">DISABLE 2FA</button></div></article>
+            </section>
+
+            <section class="admin-view" data-view-panel="audit">
+                <div class="view-toolbar"><div><h2>ADMIN AUDIT TRAIL</h2><p>Recent privileged actions stored in PostgreSQL.</p></div></div>
+                <div id="admin-audit" class="admin-table"></div>
+            </section>
+        </main>
+    </div>
+
+    <div id="admin-gate" class="admin-gate"><span>YO</span><p>VERIFYING ADMIN SESSION</p></div>
+
+    <dialog id="product-dialog" class="product-dialog">
+        <form id="product-form" method="dialog">
+            <header><div><small>DATABASE PRODUCT</small><h2>CREATE NEW ITEM</h2></div><button id="close-product-modal" class="icon-button" type="button" aria-label="Close">×</button></header>
+            <div class="form-section"><h3>01 / IDENTITY</h3><div class="form-grid"><label>PRODUCT NAME<input name="title" required maxlength="120" placeholder="RAIN TEE"></label><label>SLUG<input name="slug" required maxlength="120" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="rain-tee"></label><label>CATEGORY<input name="category" list="categories" required maxlength="80" placeholder="tshirts"><datalist id="categories"><option value="tshirts"><option value="shorts"><option value="jackets"><option value="pants"><option value="footwear"><option value="accessories"></datalist></label><label>SEASON<input name="season" maxlength="100" placeholder="S3 / COLLECTION NAME"></label><label>STATUS<select name="status"><option>DRAFT</option><option>ACTIVE</option><option>INACTIVE</option></select></label><label class="full-field">DESCRIPTION<textarea name="description" required maxlength="5000" placeholder="Silhouette, materials, fit and details."></textarea></label></div></div>
+            <div class="form-section"><div class="section-heading"><h3>02 / IMAGES</h3><button id="add-image-row" class="secondary-action" type="button">＋ ADD GALLERY IMAGE</button></div><p class="field-note">CATALOGUE PREVIEW</p><div id="preview-image-row" class="dynamic-rows"></div><p class="field-note">PRODUCT GALLERY · UP TO 19 ADDITIONAL IMAGES</p><div id="gallery-image-rows" class="dynamic-rows"></div></div>
+            <div class="form-section"><div class="section-heading"><h3>03 / SIZES & INVENTORY</h3><button id="add-variant-row" class="secondary-action" type="button">＋ ADD SIZE</button></div><div class="variant-labels"><span>SIZE</span><span>SKU</span><span>PRICE (ILS)</span><span>STOCK</span><span>ACTIVE</span><span></span></div><div id="variant-rows" class="dynamic-rows"></div></div>
+            <footer><p>Prices and availability become authoritative only after saving to backend.</p><button id="create-product" class="primary-action" type="submit">CREATE PRODUCT</button></footer>
+        </form>
+    </dialog>
+
+    <template id="image-row-template"><div class="image-row dynamic-row"><div class="image-preview"><span>PREVIEW</span></div><label>URL<input data-image-url required maxlength="2048" placeholder="/assets/..."></label><label>ALT TEXT<input data-image-alt required maxlength="300" placeholder="Front view"></label><button class="remove-row" type="button" aria-label="Remove image">×</button></div></template>
+    <template id="variant-row-template"><div class="variant-row dynamic-row"><input data-variant-size required maxlength="20" placeholder="L"><input data-variant-sku required maxlength="64" placeholder="YO-ITEM-L"><input data-variant-price type="number" min="0" max="1000000" step="0.01" required placeholder="250"><input data-variant-stock type="number" min="0" max="1000000" step="1" required placeholder="10"><label class="mini-switch"><input data-variant-active type="checkbox" checked><span></span></label><button class="remove-row" type="button" aria-label="Remove size">×</button></div></template>
+
+    <script src="api.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

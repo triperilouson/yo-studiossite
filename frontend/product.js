@@ -1,146 +1,108 @@
-const params = new URLSearchParams(window.location.search);
+"use strict";
 
-const productId = params.get("id");
+const productSlug = new URLSearchParams(window.location.search).get("id");
 
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
-
-fetch('./data/products.json')
-
-.then(response => response.json())
-
-.then(products => {
-
-    const product = products.find(p => p.id === productId);
-
-    const gallery = document.getElementById("product-gallery");
-    const overlay = document.getElementById("product-overlay");
-    const cartCount = document.getElementById("cart-count");
-
-    if(cartCount){
-        cartCount.innerText = cart.length;
+async function updateCartCount() {
+    const count = document.getElementById("cart-count");
+    try {
+        const cart = await YOApi.getCart();
+        count.textContent = String(cart.items.reduce((total, item) => total + item.quantity, 0));
+    } catch (error) {
+        if (error.status !== 401) console.error(error);
+        count.textContent = "0";
     }
+}
 
-    product.images.forEach(image => {
-
-        gallery.innerHTML += `
-
-        <div class="product-slide">
-
-            <img src="${image}">
-
-        </div>
-
-        `;
-
+function renderProduct(product) {
+    const gallery = document.getElementById("product-gallery");
+    const slides = product.images.map((source) => {
+        const slide = document.createElement("div");
+        slide.className = "product-slide";
+        const image = document.createElement("img");
+        image.src = YOApi.imageUrl(source.url);
+        image.alt = source.alt || product.title;
+        slide.appendChild(image);
+        return slide;
     });
+    gallery.replaceChildren(...slides);
 
-    overlay.innerHTML = `
+    const overlay = document.getElementById("product-overlay");
+    const season = document.createElement("p");
+    season.textContent = product.season || "YO STUDIOS";
+    const title = document.createElement("h1");
+    title.textContent = product.title;
+    const price = document.createElement("span");
+    const description = document.createElement("div");
+    description.className = "product-description";
+    description.textContent = product.description;
+    const sizes = document.createElement("div");
+    sizes.className = "sizes";
+    const addButton = document.createElement("button");
+    addButton.className = "buy-button";
+    addButton.type = "button";
+    addButton.textContent = "ADD TO CART";
+    let selectedVariant = null;
 
-        <p>${product.season}</p>
-
-        <h1>${product.name}</h1>
-
-        <span>${product.price}</span>
-
-        <div class="product-description">
-
-            ${product.description}
-
-        </div>
-
-        <div class="sizes">
-
-            ${product.sizes.map(size => `
-
-                <button class="size-btn">
-
-                    ${size}
-
-                </button>
-
-            `).join("")}
-
-        </div>
-
-        <button class="buy-button">
-
-            ADD TO CART
-
-        </button>
-
-    `;
-
-    let selectedSize = null;
-
-    document
-    .querySelectorAll(".size-btn")
-    .forEach(button => {
-
+    product.variants.forEach((variant) => {
+        const button = document.createElement("button");
+        button.className = "size-btn";
+        button.type = "button";
+        button.textContent = variant.size;
+        button.disabled = variant.available < 1;
+        button.title = variant.available < 1 ? "Sold out" : `${variant.available} available`;
         button.addEventListener("click", () => {
-
-            document
-            .querySelectorAll(".size-btn")
-            .forEach(btn => btn.classList.remove("active"));
-
+            sizes.querySelectorAll(".size-btn").forEach((item) => item.classList.remove("active"));
             button.classList.add("active");
-
-            selectedSize = button.innerText.trim();
-
+            selectedVariant = variant;
+            price.textContent = YOApi.formatMoney(variant.priceMinor, variant.currency);
         });
-
+        sizes.appendChild(button);
     });
 
-    const button = document.querySelector(".buy-button");
-
-    button.addEventListener("click", () => {
-
-        if(!selectedSize){
-
-            alert("SELECT SIZE");
-
+    const firstAvailable = product.variants.find((variant) => variant.available > 0) || product.variants[0];
+    price.textContent = firstAvailable ? YOApi.formatMoney(firstAvailable.priceMinor, firstAvailable.currency) : "SOLD OUT";
+    addButton.disabled = !product.variants.some((variant) => variant.available > 0);
+    addButton.addEventListener("click", async () => {
+        if (!selectedVariant) {
+            addButton.textContent = "SELECT SIZE";
+            setTimeout(() => { addButton.textContent = "ADD TO CART"; }, 1200);
             return;
-
         }
-
-        const existing = cart.find(item =>
-
-            item.id === product.id &&
-            item.size === selectedSize
-
-        );
-
-        if(existing){
-
-            existing.quantity++;
-
-        }else{
-
-            cart.push({
-
-                ...product,
-
-                size:selectedSize,
-
-                quantity:1
-
-            });
-
+        addButton.disabled = true;
+        try {
+            await YOApi.addCartItem({ productId: product.id, size: selectedVariant.size, quantity: 1 });
+            addButton.textContent = "ADDED";
+            await updateCartCount();
+        } catch (error) {
+            if (error.status === 401) {
+                window.location.href = `auth.html?return=${encodeURIComponent(`product.html?id=${product.slug}`)}`;
+                return;
+            }
+            addButton.textContent = error.message.toUpperCase();
+        } finally {
+            setTimeout(() => {
+                addButton.textContent = "ADD TO CART";
+                addButton.disabled = false;
+            }, 1500);
         }
-
-        localStorage.setItem("cart", JSON.stringify(cart));
-
-        if(cartCount){
-            cartCount.innerText = cart.length;
-        }
-
-        button.innerText = "ADDED";
-
-        setTimeout(() => {
-
-            button.innerText = "ADD TO CART";
-
-        }, 1200);
-
     });
 
-});
+    overlay.replaceChildren(season, title, price, description, sizes, addButton);
+    document.title = `YO — ${product.title}`;
+}
+
+async function loadProduct() {
+    if (!productSlug) return;
+    try {
+        renderProduct(await YOApi.getProduct(productSlug));
+        await updateCartCount();
+    } catch (error) {
+        const overlay = document.getElementById("product-overlay");
+        const message = document.createElement("h1");
+        message.textContent = error.status === 404 ? "PRODUCT NOT FOUND" : "PRODUCT UNAVAILABLE";
+        overlay.replaceChildren(message);
+        console.error(error);
+    }
+}
+
+void loadProduct();

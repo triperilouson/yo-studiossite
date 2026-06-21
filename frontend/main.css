@@ -863,3 +863,23 @@ html{
     }
 
 }
+
+/* Shared account entry, matched to the existing restrained navigation style. */
+.account-button{
+    position:fixed;
+    top:40px;
+    right:50px;
+    z-index:900;
+    color:white;
+    text-decoration:none;
+    font-size:10px;
+    letter-spacing:3px;
+    opacity:0.45;
+    transition:opacity 0.3s ease;
+}
+
+.account-button:hover{ opacity:0.9; }
+
+@media(max-width:900px){
+    .account-button{ top:24px; right:20px; }
+}

@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  GUEST
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  FAILED
+  CANCELLED
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  ADMIN_MFA
+}
+
+model User {
+  id                  String          @id @default(uuid()) @db.Uuid
+  email               String          @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  phone               String?
+  role                Role            @default(USER)
+  isActive            Boolean         @default(true)
+  failedLoginAttempts Int             @default(0)
+  lockedUntil         DateTime?
+  adminMfaSecret      String?
+  adminMfaEnabled     Boolean         @default(false)
+  emailVerifiedAt     DateTime?
+  addresses           Address[]
+  sessions            AuthSession[]
+  authTokens          AuthToken[]
+  cart                Cart?
+  orders              Order[]
+  adminAuditLogs      AdminAuditLog[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([role, isActive])
+}
+
+model Address {
+  id         String   @id @default(uuid()) @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  label      String
+  fullName   String
+  phone      String
+  country    String
+  state      String?
+  city       String
+  postalCode String
+  line1      String
+  line2      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String    @db.Uuid
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokeReason     String?
+  rotatedToId      String?   @db.Uuid
+  userAgent        String?
+  ipHash           String?
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model AuthToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String        @db.Uuid
+  type      AuthTokenType
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId, type])
+  @@index([expiresAt])
+}
+
+model Product {
+  id          String           @id @default(uuid()) @db.Uuid
+  slug        String           @unique
+  title       String
+  description String
+  category    String
+  season      String?
+  status      ProductStatus    @default(DRAFT)
+  images      ProductImage[]
+  variants    ProductVariant[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([category, status])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String   @db.Uuid
+  url       String
+  alt       String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, position])
+  @@index([productId])
+}
+
+model ProductVariant {
+  id            String      @id @default(uuid()) @db.Uuid
+  sku           String      @unique
+  size          String
+  priceMinor    Int
+  currency      String      @default("ILS")
+  stock         Int         @default(0)
+  reservedStock Int         @default(0)
+  isActive      Boolean     @default(true)
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId     String      @db.Uuid
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([productId, size])
+  @@index([productId])
+}
+
+model Cart {
+  id        String     @id @default(uuid()) @db.Uuid
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String     @unique @db.Uuid
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String         @id @default(uuid()) @db.Uuid
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId    String         @db.Uuid
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  variantId String         @db.Uuid
+  quantity  Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  user            User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId          String      @db.Uuid
+  status          OrderStatus @default(PENDING_PAYMENT)
+  emailSnapshot   String
+  phoneSnapshot   String
+  nameSnapshot    String
+  addressSnapshot Json?
+  currency        String
+  subtotalMinor   Int
+  shippingMinor   Int         @default(0)
+  totalMinor      Int
+  idempotencyKey  String
+  items           OrderItem[]
+  payments        Payment[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id                String         @id @default(uuid()) @db.Uuid
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId           String         @db.Uuid
+  variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  variantId         String         @db.Uuid
+  productIdSnapshot String         @db.Uuid
+  skuSnapshot       String
+  titleSnapshot     String
+  sizeSnapshot      String
+  unitPriceMinor    Int
+  quantity          Int
+  updatedAt         DateTime       @updatedAt
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  provider          String
+  providerPaymentId String?       @unique
+  providerSessionId String?       @unique
+  providerRawStatus String?
+  status            PaymentStatus @default(CREATED)
+  amountMinor       Int
+  currency          String
+  checkoutUrl       String?
+  paidAt            DateTime?
+  failedAt          DateTime?
+  metadata          Json?
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId           String        @db.Uuid
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([orderId, provider])
+  @@index([orderId])
+  @@index([status, createdAt])
+}
+
+model WebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String
+  providerEventId String
+  payloadHash     String
+  processingError String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([provider, providerEventId])
+}
+
+model StoreSettings {
+  id                  Int      @id @default(1)
+  registrationEnabled Boolean  @default(true)
+  updatedById         String?  @db.Uuid
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

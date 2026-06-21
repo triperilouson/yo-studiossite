@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="YO STUDIOS customer profile, addresses and order history">
+    <title>YO — MY ACCOUNT</title>
+    <link rel="stylesheet" href="shop.css">
+</head>
+<body>
+    <main class="account-page">
+        <div class="account-heading">
+            <a class="quiet-link" href="index.html">YO STUDIOS</a>
+            <button id="logout-button" class="text-button" type="button">LOGOUT</button>
+        </div>
+        <h1>MY ACCOUNT</h1>
+        <p id="account-status" class="form-status" aria-live="polite"></p>
+        <section class="account-section">
+            <h2>PROFILE</h2>
+            <form id="profile-form" class="yo-form compact-form">
+                <label>FIRST NAME<input name="firstName" required maxlength="80"></label>
+                <label>LAST NAME<input name="lastName" required maxlength="80"></label>
+                <label>PHONE<input name="phone" autocomplete="tel" maxlength="20"></label>
+                <label>EMAIL<input name="email" type="email" disabled></label>
+                <button class="buy-button" type="submit">SAVE PROFILE</button>
+            </form>
+        </section>
+        <section class="account-section">
+            <h2>ADDRESSES</h2>
+            <div id="address-list" class="address-list"></div>
+            <details class="address-editor">
+                <summary>ADD NEW ADDRESS</summary>
+                <form id="address-form" class="yo-form compact-form">
+                    <label>LABEL<input name="label" value="HOME" required maxlength="40"></label>
+                    <label>FULL NAME<input name="fullName" autocomplete="name" required maxlength="120"></label>
+                    <label>PHONE<input name="phone" autocomplete="tel" required maxlength="20"></label>
+                    <label>COUNTRY CODE<input name="country" value="IL" required minlength="2" maxlength="2"></label>
+                    <label>CITY<input name="city" autocomplete="address-level2" required maxlength="100"></label>
+                    <label>STATE / REGION<input name="state" autocomplete="address-level1" maxlength="100"></label>
+                    <label>POSTAL CODE<input name="postalCode" autocomplete="postal-code" required maxlength="20"></label>
+                    <label class="wide-field">ADDRESS<input name="line1" autocomplete="address-line1" required maxlength="160"></label>
+                    <label class="wide-field">ADDRESS LINE 2<input name="line2" autocomplete="address-line2" maxlength="160"></label>
+                    <label class="check-field"><input name="isDefault" type="checkbox"> DEFAULT ADDRESS</label>
+                    <button class="buy-button" type="submit">ADD ADDRESS</button>
+                </form>
+            </details>
+        </section>
+        <section class="account-section">
+            <h2>ORDER HISTORY</h2>
+            <div id="order-list" class="order-list"></div>
+        </section>
+        <a id="admin-link" class="quiet-link hidden" href="admin.html">ADMINISTRATION</a>
+    </main>
+    <script src="api.js"></script>
+    <script src="account.js"></script>
+</body>
+</html>

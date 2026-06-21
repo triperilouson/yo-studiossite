@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="YO STUDIOS customer account">
+    <title>YO — ACCOUNT</title>
+    <link rel="stylesheet" href="shop.css">
+</head>
+<body>
+    <main class="account-page auth-page">
+        <a class="quiet-link" href="index.html">YO STUDIOS</a>
+        <div class="account-tabs" role="tablist">
+            <button class="account-tab active" data-panel="login-panel" type="button">LOGIN</button>
+            <button class="account-tab" data-panel="register-panel" type="button">REGISTER</button>
+        </div>
+        <section id="login-panel" class="account-panel active">
+            <form id="login-form" class="yo-form">
+                <label>EMAIL<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+                <label>PASSWORD<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>
+                <button class="buy-button" type="submit">LOGIN</button>
+            </form>
+        </section>
+        <section id="mfa-panel" class="account-panel">
+            <form id="mfa-form" class="yo-form">
+                <label>AUTHENTICATOR CODE<input name="code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}" maxlength="6"></label>
+                <button class="buy-button" type="submit">VERIFY ADMIN LOGIN</button>
+            </form>
+        </section>
+        <section id="register-panel" class="account-panel">
+            <form id="register-form" class="yo-form">
+                <label>FIRST NAME<input name="firstName" autocomplete="given-name" required maxlength="80"></label>
+                <label>LAST NAME<input name="lastName" autocomplete="family-name" required maxlength="80"></label>
+                <label>EMAIL<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+                <label>PASSWORD<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+                <small>12+ characters, uppercase, lowercase and number.</small>
+                <button class="buy-button" type="submit">CREATE ACCOUNT</button>
+            </form>
+        </section>
+        <p id="auth-status" class="form-status" aria-live="polite"></p>
+    </main>
+    <script src="api.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html>

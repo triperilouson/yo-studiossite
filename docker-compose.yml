@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://yo:${POSTGRES_PASSWORD:-local_only_change_me}@postgres:5432/yo_store?schema=public
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4173}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yo_store
+      POSTGRES_USER: yo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_only_change_me}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yo -d yo_store"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:

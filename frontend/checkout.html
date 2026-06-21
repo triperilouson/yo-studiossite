@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>YO — CHECKOUT</title>
+    <link rel="stylesheet" href="shop.css">
+</head>
+<body>
+    <main class="account-page checkout-page">
+        <a class="quiet-link" href="cart.html">← CART</a>
+        <h1>CHECKOUT</h1>
+        <section class="account-section">
+            <h2>ORDER</h2>
+            <div id="checkout-cart"></div>
+            <div id="checkout-total" class="cart-total"></div>
+        </section>
+        <section class="account-section">
+            <h2>DELIVERY ADDRESS</h2>
+            <div id="checkout-addresses" class="address-list"></div>
+            <a class="quiet-link" href="account.html">MANAGE ADDRESSES</a>
+        </section>
+        <button id="place-order" class="buy-button" type="button" disabled>PLACE ORDER</button>
+        <p id="checkout-status" class="form-status" aria-live="polite"></p>
+    </main>
+    <script src="api.js"></script>
+    <script src="checkout.js"></script>
+</body>
+</html>
