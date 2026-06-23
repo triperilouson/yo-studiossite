@@ -4,7 +4,7 @@
     const configuredBase = window.YO_API_BASE || document.querySelector('meta[name="yo-api-base"]')?.content;
     const localHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     const localApi = `http://${window.location.hostname}:3000/api/v1`;
-    const API_BASE = (configuredBase || (localHost ? localApi : "/api/v1")).replace(/\/$/, "");
+    const API_BASE = (configuredBase || (localHost ? localApi : "https://api.yo-studios.com/api/v1")).replace(/\/$/, "");
 
     let accessToken = null;
     let currentUser = null;
