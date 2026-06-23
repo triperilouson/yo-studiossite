@@ -1,11 +1,26 @@
 import {
   IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
+  ValidateNested,
 } from 'class-validator';
 import { ShippingMethod } from '@prisma/client';
+import { Type } from 'class-transformer';
+
+export class DeliveryAddressDto {
+  @IsOptional() @IsString() @Length(1, 80) label?: string;
+  @IsString() @Length(2, 120) fullName!: string;
+  @IsString() @Matches(/^\+?[0-9 ()-]{7,20}$/) phone!: string;
+  @IsString() @Matches(/^[A-Z]{2}$/) country!: string;
+  @IsOptional() @IsString() @MaxLength(120) state?: string;
+  @IsString() @Length(1, 120) city!: string;
+  @IsString() @Length(2, 30) postalCode!: string;
+  @IsString() @Length(2, 200) line1!: string;
+  @IsOptional() @IsString() @MaxLength(200) line2?: string;
+}
 
 export class ShippingSelectionDto {
   @IsEnum(ShippingMethod) method!: ShippingMethod;
   @IsOptional() @IsUUID() addressId?: string;
+  @IsOptional() @ValidateNested() @Type(() => DeliveryAddressDto) address?: DeliveryAddressDto;
   @IsOptional() @IsUUID() pickupLocationId?: string;
 }
 

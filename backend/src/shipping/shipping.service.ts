@@ -56,9 +56,26 @@ export class ShippingService {
       };
     }
 
-    if (!selection.addressId) throw new ConflictException('Delivery address is required');
-    const address = await db.address.findFirst({ where: { id: selection.addressId, userId } });
-    if (!address) throw new NotFoundException('Checkout address not found');
+    let address;
+    if (selection.addressId) {
+      address = await db.address.findFirst({ where: { id: selection.addressId, userId } });
+      if (!address) throw new NotFoundException('Checkout address not found');
+    } else if (selection.address) {
+      address = {
+        label: selection.address.label?.trim() || 'Checkout',
+        fullName: selection.address.fullName.trim(),
+        phone: selection.address.phone.trim(),
+        country: selection.address.country.toUpperCase(),
+        state: selection.address.state?.trim() || null,
+        city: selection.address.city.trim(),
+        postalCode: selection.address.postalCode.trim(),
+        line1: selection.address.line1.trim(),
+        line2: selection.address.line2?.trim() || null,
+        isDefault: false,
+      };
+    } else {
+      throw new ConflictException('Delivery address is required');
+    }
     const country = await db.shippingCountry.findFirst({
       where: { code: address.country.toUpperCase(), isActive: true },
     });

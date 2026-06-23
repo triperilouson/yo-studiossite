@@ -3,7 +3,7 @@ import { Role } from '@prisma/client';
 import type { AuthUser } from '../common/types/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddressDto } from './dto/address.dto';
-import { AdminUpdateUserDto } from './dto/admin-user.dto';
+import { AdminDeleteUserDto, AdminUpdateUserDto } from './dto/admin-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AdminAuditService } from '../common/admin-audit.service';
 import * as argon2 from 'argon2';
@@ -119,5 +119,74 @@ export class UsersService {
       role: user.role, isActive: user.isActive,
     });
     return user;
+  }
+
+  async deleteForSuperAdmin(actor: AuthUser, targetId: string, input: AdminDeleteUserDto) {
+    if (actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('SUPER_ADMIN is required to delete users');
+    }
+    if (actor.userId === targetId) {
+      throw new ForbiddenException('You cannot delete your own super-admin account');
+    }
+    const [operator, target] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: actor.userId }, select: { passwordHash: true } }),
+      this.prisma.user.findUnique({
+        where: { id: targetId },
+        select: { id: true, email: true, role: true },
+      }),
+    ]);
+    if (!target) throw new NotFoundException('User not found');
+    if (!operator || !(await argon2.verify(operator.passwordHash, input.currentPassword))) {
+      throw new ForbiddenException('Current super-admin password is required');
+    }
+    if (target.role === Role.SUPER_ADMIN) {
+      const remaining = await this.prisma.user.count({
+        where: { role: Role.SUPER_ADMIN, isActive: true, id: { not: targetId } },
+      });
+      if (remaining < 1) throw new ForbiddenException('At least one active SUPER_ADMIN must remain');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const orderCount = await tx.order.count({ where: { userId: targetId } });
+      await tx.authSession.updateMany({
+        where: { userId: targetId, revokedAt: null },
+        data: { revokedAt: new Date(), revokeReason: 'admin_user_deleted' },
+      });
+      await tx.authToken.deleteMany({ where: { userId: targetId } });
+      await tx.address.deleteMany({ where: { userId: targetId } });
+      const cart = await tx.cart.findUnique({ where: { userId: targetId }, select: { id: true } });
+      if (cart) {
+        await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+        await tx.cart.delete({ where: { id: cart.id } });
+      }
+      if (orderCount > 0) {
+        await tx.user.update({
+          where: { id: targetId },
+          data: {
+            email: `deleted-${targetId}@deleted.yo.local`,
+            firstName: 'Deleted',
+            lastName: 'User',
+            phone: null,
+            isActive: false,
+            role: Role.USER,
+            failedLoginAttempts: 0,
+            lockedUntil: null,
+            adminMfaSecret: null,
+            adminMfaEnabled: false,
+          },
+        });
+        return { mode: 'anonymized' as const, orderCount };
+      }
+      await tx.user.delete({ where: { id: targetId } });
+      return { mode: 'deleted' as const, orderCount };
+    });
+
+    await this.audit.record(actor.userId, 'USER_ADMIN_DELETED', 'User', targetId, {
+      email: target.email,
+      role: target.role,
+      mode: result.mode,
+      orderCount: result.orderCount,
+    });
+    return result;
   }
 }
