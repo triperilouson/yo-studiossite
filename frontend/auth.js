@@ -1,8 +1,10 @@
 "use strict";
 
 const authStatus = document.getElementById("auth-status");
-const destination = YOApi.safeReturnUrl(new URLSearchParams(window.location.search).get("return"));
+const query = new URLSearchParams(window.location.search);
+const destination = YOApi.safeReturnUrl(query.get("return"));
 let mfaChallengeToken = null;
+let resetToken = query.get("reset");
 
 function setAuthStatus(message, isError = false) {
     authStatus.textContent = message ? message.toUpperCase() : "";
@@ -58,7 +60,51 @@ document.getElementById("register-form").addEventListener("submit", (event) => {
     event.preventDefault();
     void submitAuth(event.currentTarget, YOApi.register);
 });
+document.getElementById("reset-request-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    setAuthStatus("PLEASE WAIT");
+    YOApi.requestPasswordReset(new FormData(form).get("email"))
+        .then(() => setAuthStatus("IF THE ACCOUNT EXISTS, RESET EMAIL WAS SENT"))
+        .catch((error) => setAuthStatus(error.message, true))
+        .finally(() => { button.disabled = false; });
+});
+document.getElementById("reset-confirm-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    setAuthStatus("PLEASE WAIT");
+    YOApi.resetPassword({ token: resetToken, password: new FormData(form).get("password") })
+        .then(() => {
+            resetToken = null;
+            window.history.replaceState({}, "", "auth.html");
+            document.querySelector('[data-panel="login-panel"]').click();
+            setAuthStatus("PASSWORD RESET. YOU CAN LOGIN NOW");
+        })
+        .catch((error) => setAuthStatus(error.message, true))
+        .finally(() => { button.disabled = false; });
+});
 
-YOApi.getCurrentUser().then((user) => {
+async function handleEmailActions() {
+    const verifyToken = query.get("verify");
+    if (verifyToken) {
+        await YOApi.verifyEmail(verifyToken);
+        setAuthStatus("EMAIL VERIFIED. YOU CAN CONTINUE");
+        window.history.replaceState({}, "", "auth.html");
+        return;
+    }
+    if (resetToken) {
+        document.querySelectorAll(".account-tab").forEach((item) => item.classList.remove("active"));
+        document.querySelectorAll(".account-panel").forEach((item) => item.classList.remove("active"));
+        document.getElementById("reset-confirm-panel").classList.add("active");
+        setAuthStatus("ENTER A NEW PASSWORD");
+        return;
+    }
+    const user = await YOApi.getCurrentUser();
     if (user) window.location.href = destination;
-}).catch(() => undefined);
+}
+
+handleEmailActions().catch((error) => setAuthStatus(error.message, true));

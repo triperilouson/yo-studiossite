@@ -22,7 +22,7 @@ describe('refresh token reuse detection', () => {
         updateMany,
       },
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
 
     await expect(service.refresh('e17dd27d-9be8-4ec4-a560-560778a02040.secret', { ip: '127.0.0.1' }))
       .rejects.toThrow('Refresh token reuse detected');

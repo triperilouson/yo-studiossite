@@ -125,6 +125,9 @@
         request,
         login: (body) => authenticate("/auth/login", body),
         register: (body) => authenticate("/auth/register", body),
+        verifyEmail: (token) => request("/auth/email/verify", { method: "POST", body: { token } }),
+        requestPasswordReset: (email) => request("/auth/password-reset/request", { method: "POST", body: { email } }),
+        resetPassword: (body) => request("/auth/password-reset/confirm", { method: "POST", body }),
         completeAdminMfa: async (body) => {
             const result = await request("/auth/admin-mfa/complete", { method: "POST", body });
             accessToken = result.accessToken;

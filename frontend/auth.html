@@ -13,6 +13,7 @@
         <div class="account-tabs" role="tablist">
             <button class="account-tab active" data-panel="login-panel" type="button">LOGIN</button>
             <button class="account-tab" data-panel="register-panel" type="button">REGISTER</button>
+            <button class="account-tab" data-panel="reset-request-panel" type="button">RESET</button>
         </div>
         <section id="login-panel" class="account-panel active">
             <form id="login-form" class="yo-form">
@@ -35,6 +36,19 @@
                 <label>PASSWORD<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
                 <small>12+ characters, uppercase, lowercase and number.</small>
                 <button class="buy-button" type="submit">CREATE ACCOUNT</button>
+            </form>
+        </section>
+        <section id="reset-request-panel" class="account-panel">
+            <form id="reset-request-form" class="yo-form">
+                <label>EMAIL<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+                <button class="buy-button" type="submit">SEND RESET LINK</button>
+            </form>
+        </section>
+        <section id="reset-confirm-panel" class="account-panel">
+            <form id="reset-confirm-form" class="yo-form">
+                <label>NEW PASSWORD<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+                <small>12+ characters, uppercase, lowercase and number.</small>
+                <button class="buy-button" type="submit">RESET PASSWORD</button>
             </form>
         </section>
         <p id="auth-status" class="form-status" aria-live="polite"></p>

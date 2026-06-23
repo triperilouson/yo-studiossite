@@ -9,7 +9,7 @@ describe('payment webhook security', () => {
     const provider = {
       name: 'grow', createSession: vi.fn(), verifyWebhook: vi.fn().mockResolvedValue(null),
     };
-    const service = new PaymentsService(prisma as never, provider);
+    const service = new PaymentsService(prisma as never, provider, {} as never);
 
     await expect(service.receiveWebhook(Buffer.from('{}'), {})).rejects.toThrow('Invalid webhook signature');
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -35,7 +35,7 @@ describe('payment webhook security', () => {
         amountMinor: 1000, currency: 'ILS',
       }),
     };
-    const service = new PaymentsService(prisma as never, provider);
+    const service = new PaymentsService(prisma as never, provider, {} as never);
 
     await expect(service.receiveWebhook(Buffer.from('{}'), {}))
       .resolves.toEqual({ accepted: true, duplicate: true });
@@ -60,7 +60,7 @@ describe('payment webhook security', () => {
         rawStatus: 'paid', status: 'SUCCEEDED' as const, amountMinor: 1000, currency: 'ILS',
       }),
     };
-    const service = new PaymentsService(prisma as never, provider);
+    const service = new PaymentsService(prisma as never, provider, {} as never);
 
     await expect(service.receiveWebhook(Buffer.from('{}'), {}))
       .rejects.toThrow('Webhook processing is still in progress');

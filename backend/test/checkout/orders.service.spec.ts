@@ -25,7 +25,7 @@ describe('OrdersService checkout', () => {
     };
     const prisma = { $transaction: vi.fn((callback) => callback(tx)) };
     const shipping = { resolve: vi.fn() };
-    const service = new OrdersService(prisma as never, {} as never, shipping as never);
+    const service = new OrdersService(prisma as never, {} as never, shipping as never, {} as never);
 
     await expect(service.checkout('user', {
       method: 'DELIVERY', addressId: 'address', firstName: 'A', lastName: 'B',

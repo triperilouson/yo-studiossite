@@ -16,6 +16,7 @@ import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/password-reset.dto';
 import { AdminAuditService } from '../common/admin-audit.service';
 import { AdminMfaService } from './admin-mfa.service';
+import { MailService } from '../mail/mail.service';
 
 interface ClientContext { ip: string; userAgent?: string }
 interface IssuedTokens { accessToken: string; refreshToken: string; expiresIn: string }
@@ -42,6 +43,7 @@ export class AuthService {
     private readonly config: ConfigService<Environment, true>,
     private readonly audit: AdminAuditService,
     private readonly mfa: AdminMfaService,
+    private readonly mail: MailService,
   ) {}
 
   async register(input: RegisterDto, context: ClientContext) {
@@ -62,7 +64,8 @@ export class AuthService {
         },
         select: publicUserSelect,
       });
-      await this.createOneTimeToken(user.id, AuthTokenType.EMAIL_VERIFICATION, 24 * 60);
+      const verificationToken = await this.createOneTimeToken(user.id, AuthTokenType.EMAIL_VERIFICATION, 24 * 60);
+      await this.mail.sendEmailVerification(user.email, verificationToken);
       return { user, ...(await this.issueSession(user, context)) };
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -206,7 +209,8 @@ export class AuthService {
       where: { email: email.trim().toLowerCase() }, select: { id: true },
     });
     if (user) {
-      await this.createOneTimeToken(user.id, AuthTokenType.PASSWORD_RESET, 30);
+      const token = await this.createOneTimeToken(user.id, AuthTokenType.PASSWORD_RESET, 30);
+      await this.mail.sendPasswordReset(email.trim().toLowerCase(), token);
     } else {
       await argon2.verify(await this.dummyPasswordHash, randomBytes(32));
     }

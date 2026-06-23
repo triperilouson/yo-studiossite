@@ -7,12 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   PAYMENT_PROVIDER, type PaymentProvider, type VerifiedPaymentWebhook,
 } from './contracts/payment-provider';
+import { MailService, type OrderMailSnapshot } from '../mail/mail.service';
 
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly mail: MailService,
   ) {}
 
   async createSession(userId: string, orderId: string) {
@@ -61,7 +63,7 @@ export class PaymentsService {
     const payloadHash = createHash('sha256').update(rawBody).digest('hex');
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const existing = await tx.webhookEvent.findUnique({
           where: { provider_providerEventId: { provider: this.provider.name, providerEventId: verified.eventId } },
         });
@@ -100,13 +102,18 @@ export class PaymentsService {
           throw new ConflictException('Payment amount does not match order');
         }
 
-        await this.applyVerifiedStatus(tx, payment, verified);
+        const mailOrder = await this.applyVerifiedStatus(tx, payment, verified);
         await tx.webhookEvent.update({
           where: { id: event.id },
           data: { processedAt: new Date(), processingError: null },
         });
-        return { accepted: true as const, duplicate: false };
+        return { accepted: true as const, duplicate: false, mailOrder };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 });
+      if (result.mailOrder) {
+        if (result.mailOrder.status === OrderStatus.PAID) await this.mail.sendPaymentReceipt(result.mailOrder);
+        else await this.mail.sendOrderStatus(result.mailOrder);
+      }
+      return { accepted: result.accepted, duplicate: result.duplicate };
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const concurrent = await this.prisma.webhookEvent.findUnique({
@@ -147,7 +154,7 @@ export class PaymentsService {
     tx: Prisma.TransactionClient,
     payment: Prisma.PaymentGetPayload<{ include: { order: { include: { items: true } } } }>,
     webhook: VerifiedPaymentWebhook,
-  ): Promise<void> {
+  ): Promise<OrderMailSnapshot | null> {
     const commonUpdate = {
       providerPaymentId: webhook.providerPaymentId,
       providerSessionId: webhook.providerSessionId,
@@ -156,7 +163,7 @@ export class PaymentsService {
     };
     const { status } = webhook;
     if (status === 'SUCCEEDED') {
-      if (payment.status === PaymentStatus.SUCCEEDED && payment.order.status === OrderStatus.PAID) return;
+      if (payment.status === PaymentStatus.SUCCEEDED && payment.order.status === OrderStatus.PAID) return null;
       if (payment.order.status !== OrderStatus.PENDING_PAYMENT) {
         throw new ConflictException('Order cannot transition to PAID');
       }
@@ -177,13 +184,13 @@ export class PaymentsService {
         data: { ...commonUpdate, status: PaymentStatus.SUCCEEDED, paidAt: new Date(), failedAt: null },
       });
       await tx.order.update({ where: { id: payment.orderId }, data: { status: OrderStatus.PAID } });
-      return;
+      return { ...payment.order, status: OrderStatus.PAID };
     }
 
     if (status === 'FAILED') {
-      if (payment.status === PaymentStatus.FAILED) return;
+      if (payment.status === PaymentStatus.FAILED) return null;
       if (payment.status === PaymentStatus.SUCCEEDED || payment.order.status === OrderStatus.PAID) {
-        return;
+        return null;
       }
       if (payment.order.status === OrderStatus.PENDING_PAYMENT) {
         for (const item of payment.order.items) {
@@ -201,7 +208,7 @@ export class PaymentsService {
         where: { id: payment.id },
         data: { ...commonUpdate, status: PaymentStatus.FAILED, failedAt: new Date() },
       });
-      return;
+      return { ...payment.order, status: OrderStatus.FAILED };
     }
 
     if (payment.status !== PaymentStatus.SUCCEEDED || payment.order.status !== OrderStatus.PAID) {
@@ -211,6 +218,7 @@ export class PaymentsService {
       where: { id: payment.id }, data: { ...commonUpdate, status: PaymentStatus.REFUNDED },
     });
     await tx.order.update({ where: { id: payment.orderId }, data: { status: OrderStatus.REFUNDED } });
+    return { ...payment.order, status: OrderStatus.REFUNDED };
   }
 
   private processingError(error: unknown): string {

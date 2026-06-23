@@ -4,10 +4,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuditService } from '../common/admin-audit.service';
 import { ShippingService } from '../shipping/shipping.service';
 import type { CheckoutDto } from './dto/checkout.dto';
+import { MailService } from '../mail/mail.service';
 
 const orderResponseSelect = {
   id: true, status: true, currency: true, subtotalMinor: true, shippingMinor: true,
-  totalMinor: true, addressSnapshot: true, shippingMethod: true, shippingCountryCode: true,
+  totalMinor: true, emailSnapshot: true, nameSnapshot: true, phoneSnapshot: true,
+  addressSnapshot: true, shippingMethod: true, shippingCountryCode: true,
   pickupLocationSnapshot: true, createdAt: true, updatedAt: true,
   items: { select: { productIdSnapshot: true, skuSnapshot: true, titleSnapshot: true, sizeSnapshot: true, unitPriceMinor: true, quantity: true } },
 } as const;
@@ -18,15 +20,16 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly audit: AdminAuditService,
     private readonly shipping: ShippingService,
+    private readonly mail: MailService,
   ) {}
 
   async checkout(userId: string, selection: CheckoutDto, idempotencyKey: string) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const existing = await tx.order.findUnique({
           where: { userId_idempotencyKey: { userId, idempotencyKey } }, select: orderResponseSelect,
         });
-        if (existing) return existing;
+        if (existing) return { order: existing, created: false };
 
         const user = await tx.user.findUnique({
           where: { id: userId },
@@ -95,12 +98,14 @@ export class OrdersService {
           select: orderResponseSelect,
         });
         await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-        return order;
+        return { order, created: true };
       }, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         maxWait: 5_000,
         timeout: 15_000,
       });
+      if (result.created) await this.mail.sendOrderCreated(result.order);
+      return result.order;
     } catch (error: unknown) {
       if (error instanceof ConflictException || error instanceof NotFoundException) throw error;
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
@@ -149,6 +154,7 @@ export class OrdersService {
       return tx.order.update({ where: { id: orderId }, data: { status }, select: orderResponseSelect });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.audit.record(actorId, 'ORDER_STATUS_UPDATED', 'Order', orderId, { status });
+    await this.mail.sendOrderStatus(updated);
     return updated;
   }
 }

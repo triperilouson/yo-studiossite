@@ -18,11 +18,27 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional().or(z.literal('')),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ENABLE_SWAGGER: z.enum(['true', 'false']).default('false'),
+  FRONTEND_URL: z.string().url().default('http://127.0.0.1:5500/frontend'),
+  MAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
+  MAIL_STRICT_DELIVERY: z.enum(['true', 'false']).default('false'),
+  SES_REGION: z.string().optional().or(z.literal('')),
+  SES_FROM_EMAIL: z.string().email().optional().or(z.literal('')),
+  SES_FROM_NAME: z.string().min(1).max(80).default('YO STUDIOS'),
+  SES_REPLY_TO: z.string().email().optional().or(z.literal('')),
+  SES_CONFIGURATION_SET: z.string().optional().or(z.literal('')),
   SUPER_ADMIN_EMAIL: z.string().email().optional().or(z.literal('')),
   SUPER_ADMIN_PASSWORD: z.string().min(18).optional().or(z.literal('')),
   GROW_API_URL: z.string().url().optional().or(z.literal('')),
   GROW_API_KEY: z.string().min(20).optional().or(z.literal('')),
   GROW_WEBHOOK_SECRET: z.string().min(32).optional().or(z.literal('')),
+}).superRefine((value, context) => {
+  if (value.MAIL_PROVIDER !== 'ses') return;
+  if (!value.SES_REGION) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_REGION'], message: 'SES_REGION is required when MAIL_PROVIDER=ses' });
+  }
+  if (!value.SES_FROM_EMAIL) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+  }
 });
 
 export type Environment = z.infer<typeof envSchema>;
