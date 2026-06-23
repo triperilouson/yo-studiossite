@@ -2,18 +2,25 @@ import { ConflictException, Injectable, NotFoundException, ServiceUnavailableExc
 import { OrderStatus, Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuditService } from '../common/admin-audit.service';
+import { ShippingService } from '../shipping/shipping.service';
+import type { CheckoutDto } from './dto/checkout.dto';
 
 const orderResponseSelect = {
   id: true, status: true, currency: true, subtotalMinor: true, shippingMinor: true,
-  totalMinor: true, addressSnapshot: true, createdAt: true, updatedAt: true,
+  totalMinor: true, addressSnapshot: true, shippingMethod: true, shippingCountryCode: true,
+  pickupLocationSnapshot: true, createdAt: true, updatedAt: true,
   items: { select: { productIdSnapshot: true, skuSnapshot: true, titleSnapshot: true, sizeSnapshot: true, unitPriceMinor: true, quantity: true } },
 } as const;
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AdminAuditService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AdminAuditService,
+    private readonly shipping: ShippingService,
+  ) {}
 
-  async checkout(userId: string, addressId: string, idempotencyKey: string) {
+  async checkout(userId: string, selection: CheckoutDto, idempotencyKey: string) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const existing = await tx.order.findUnique({
@@ -25,8 +32,7 @@ export class OrdersService {
           where: { id: userId },
           select: { email: true, firstName: true, lastName: true, phone: true, isActive: true },
         });
-        const address = await tx.address.findFirst({ where: { id: addressId, userId } });
-        if (!user?.isActive || !address) throw new NotFoundException('Checkout address not found');
+        if (!user?.isActive) throw new NotFoundException('Checkout user not found');
 
         const cart = await tx.cart.findUnique({
           where: { userId },
@@ -55,19 +61,25 @@ export class OrdersService {
           (sum, item) => sum + item.variant.priceMinor * item.quantity, 0,
         );
         const currency = cart.items[0]!.variant.currency;
+        const shipping = await this.shipping.resolve(tx, userId, selection, subtotalMinor, currency);
+        const address = shipping.address;
         const order = await tx.order.create({
           data: {
             userId,
             status: OrderStatus.PENDING_PAYMENT,
-            emailSnapshot: user.email,
-            phoneSnapshot: address.phone || user.phone || '',
-            nameSnapshot: `${user.firstName} ${user.lastName}`.trim(),
-            addressSnapshot: {
+            emailSnapshot: selection.email.trim().toLowerCase(),
+            phoneSnapshot: selection.phone.trim(),
+            nameSnapshot: `${selection.firstName.trim()} ${selection.lastName.trim()}`,
+            addressSnapshot: address ? {
               label: address.label, fullName: address.fullName, phone: address.phone,
               country: address.country, state: address.state, city: address.city,
               postalCode: address.postalCode, line1: address.line1, line2: address.line2,
-            },
-            currency, subtotalMinor, shippingMinor: 0, totalMinor: subtotalMinor, idempotencyKey,
+            } : undefined,
+            shippingMethod: shipping.method,
+            shippingCountryCode: shipping.method === 'DELIVERY' ? shipping.country.code : shipping.pickupLocation.country,
+            pickupLocationSnapshot: shipping.pickupLocation ?? undefined,
+            currency, subtotalMinor, shippingMinor: shipping.shippingMinor,
+            totalMinor: subtotalMinor + shipping.shippingMinor, idempotencyKey,
             items: {
               create: cart.items.map((item) => ({
                 variantId: item.variant.id,

@@ -22,7 +22,7 @@ export class OrdersController {
     if (!key || !/^[A-Za-z0-9_-]{16,128}$/.test(key)) {
       throw new BadRequestException('Idempotency-Key must contain 16-128 safe characters');
     }
-    return this.orders.checkout(user.userId, input.addressId, key);
+    return this.orders.checkout(user.userId, input, key);
   }
   @Get(':id') @ApiOperation({ summary: 'Get an owned order' })
   get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {

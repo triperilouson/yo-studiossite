@@ -21,6 +21,17 @@ enum ProductStatus {
   ARCHIVED
 }
 
+enum SeasonStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ShippingMethod {
+  PICKUP
+  DELIVERY
+}
+
 enum OrderStatus {
   PENDING_PAYMENT
   PAID
@@ -133,13 +144,54 @@ model Product {
   description String
   category    String
   season      String?
+  seasonPage  Season?          @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  seasonId    String?          @db.Uuid
   status      ProductStatus    @default(DRAFT)
   images      ProductImage[]
   variants    ProductVariant[]
+  gameAssets  GameAsset[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   @@index([category, status])
+  @@index([seasonId, status])
+}
+
+model Season {
+  id               String        @id @default(uuid()) @db.Uuid
+  slug             String        @unique
+  code             String        @unique
+  title            String
+  description      String
+  campaignText     String?
+  status           SeasonStatus  @default(DRAFT)
+  sortOrder        Int           @default(0)
+  isFeatured       Boolean       @default(false)
+  releaseAt        DateTime?
+  previewTokenHash String?
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  images           SeasonImage[]
+  products         Product[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([status, sortOrder])
+  @@index([releaseAt])
+}
+
+model SeasonImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId  String   @db.Uuid
+  url       String
+  alt       String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seasonId, position])
+  @@index([seasonId])
 }
 
 model ProductImage {
@@ -200,27 +252,65 @@ model CartItem {
 }
 
 model Order {
-  id              String      @id @default(uuid()) @db.Uuid
-  user            User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  userId          String      @db.Uuid
-  status          OrderStatus @default(PENDING_PAYMENT)
-  emailSnapshot   String
-  phoneSnapshot   String
-  nameSnapshot    String
-  addressSnapshot Json?
-  currency        String
-  subtotalMinor   Int
-  shippingMinor   Int         @default(0)
-  totalMinor      Int
-  idempotencyKey  String
-  items           OrderItem[]
-  payments        Payment[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                     String          @id @default(uuid()) @db.Uuid
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId                 String          @db.Uuid
+  status                 OrderStatus     @default(PENDING_PAYMENT)
+  emailSnapshot          String
+  phoneSnapshot          String
+  nameSnapshot           String
+  addressSnapshot        Json?
+  currency               String
+  subtotalMinor          Int
+  shippingMinor          Int             @default(0)
+  shippingMethod         ShippingMethod?
+  shippingCountryCode    String?
+  pickupLocationSnapshot Json?
+  totalMinor             Int
+  idempotencyKey         String
+  items                  OrderItem[]
+  payments               Payment[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+model ShippingCountry {
+  id                 String   @id @default(uuid()) @db.Uuid
+  code               String   @unique
+  name               String
+  currency           String   @default("ILS")
+  priceMinor         Int
+  freeThresholdMinor Int?
+  minOrderMinor      Int?
+  maxOrderMinor      Int?
+  estimatedMinDays   Int
+  estimatedMaxDays   Int
+  isActive           Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model PickupLocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  name      String
+  country   String
+  city      String
+  address   String
+  details   String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 model OrderItem {
@@ -298,4 +388,43 @@ model AdminAuditLog {
   @@index([actorId, createdAt])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model GameAsset {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  category    String
+  mimeType    String   @default("image/png")
+  byteSize    Int
+  width       Int
+  height      Int
+  imageData   Bytes
+  config      Json
+  isBuiltIn   Boolean  @default(false)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId   String?  @db.Uuid
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, updatedAt])
+  @@index([productId])
+  @@index([createdById, updatedAt])
+}
+
+model GameLevel {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  width       Int
+  height      Int
+  config      Json
+  isActive    Boolean  @default(false)
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, updatedAt])
+  @@index([updatedById, updatedAt])
 }

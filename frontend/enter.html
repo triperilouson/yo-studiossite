@@ -1,62 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>YO — COMING SOON</title>
-
-    <link rel="stylesheet" href="main.css">
-
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>YO STUDIOS — SHOWROOM</title>
+    <link rel="stylesheet" href="showroom/showroom.css">
 </head>
-
 <body>
+<main class="showroom-page">
+    <header class="showroom-header">
+        <a href="index.html" aria-label="Back to YO Studios">YO STUDIOS</a>
+        <span id="showroom-signal">CONNECTING</span>
+    </header>
 
-    <section class="coming-soon">
+    <section class="showroom-stage" aria-label="Playable YO Studios showroom">
+        <canvas id="showroom-canvas" width="1280" height="720" tabindex="0" aria-label="Walk with WASD or arrow keys. Press E to interact."></canvas>
+        <div class="showroom-scanlines" aria-hidden="true"></div>
 
-        <p class="coming-small">
-            YO — INTERACTIVE SPACE
-        </p>
+        <aside class="showroom-hud">
+            <small>SHOWROOM / 01</small>
+            <p id="showroom-prompt">LOADING SHOWROOM</p>
+        </aside>
 
-        <h1>
-            COMING<br>
-            SOON
-        </h1>
+        <aside class="showroom-cart-panel">
+            <header><span>GAME CART</span><strong id="showroom-cart-count">0</strong></header>
+            <ul id="showroom-cart-items"></ul>
+        </aside>
 
-        <p class="coming-description">
+        <div class="showroom-toast" id="showroom-toast" aria-live="polite"></div>
 
-            Interactive experiences, digital environments,
-            experimental projects and future developments
-            connected to YO-STUDIOS will appear here.
-
-            <br><br>
-
-            This section is currently under development.
-
-            In the meantime, you can explore the collection,
-            visit the shop, browse the archive and discover
-            other parts of the website.
-
-            <br><br>
-
-            On mobile devices, use the menu icon in the
-            upper-right corner.
-
-            On desktop, navigate using the main menu above.
-
-        </p>
-
-        <a href="tshirts.html" class="enter-button">
-            VISIT SHOP
-        </a>
-
+        <section class="showroom-picker hidden" id="showroom-size-picker" aria-modal="true" role="dialog" aria-labelledby="showroom-picker-title">
+            <button id="showroom-picker-close" type="button" aria-label="Close">×</button>
+            <small>SELECT SIZE</small>
+            <h2 id="showroom-picker-title">GARMENT</h2>
+            <div id="showroom-size-options"></div>
+        </section>
     </section>
 
-    <script src="api.js"></script>
-    <script src="account-ui.js"></script>
+    <footer class="showroom-controls">
+        <span>WASD / ARROWS — MOVE</span>
+        <span>E / ENTER — INTERACT</span>
+        <button id="showroom-action" type="button">E</button>
+    </footer>
+</main>
+<script src="api.js"></script>
+<script type="module" src="showroom/game.js"></script>
 </body>
-
 </html>

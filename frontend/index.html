@@ -17,7 +17,7 @@
 
     <div class="loader" id="loader">
 
-        <img src="logo.png" class="loader-logo">
+        <img src="logo.png" class="loader-logo" alt="YO STUDIOS">
 
         <div class="loading-line">
             <div class="loading-progress"></div>
@@ -57,7 +57,7 @@
     <header>
 
         <div class="brand">
-            <img src="logo.png" class="logo">
+            <img src="logo.png" class="logo" alt="YO STUDIOS">
             <span>YO</span>
         </div>
 
@@ -70,12 +70,8 @@
 
                 <a href="#">COLLECTION</a>
 
-                <div class="dropdown-content">
-
-                    <a href="s1.html">S1 — BETWEEN WIND AND WATER</a>
-
-                    <a href="s2.html">S2 — OPEN SPACE</a>
-
+                <div class="dropdown-content" data-season-links>
+                    <a href="season.html?slug=s2-open-space">S2 — OPEN SPACE</a>
                 </div>
 
             </div>
@@ -110,16 +106,10 @@
 
             <div class="dropdown">
 
-                <a href="#">ARCHIVE</a>
+                <a href="archive.html">ARCHIVE</a>
 
-                <div class="dropdown-content">
-
-                    <a href="s1.html">S1</a>
-
-                    <a href="s2.html">S2</a>
-
-                    
-
+                <div class="dropdown-content" data-archive-links>
+                    <a href="archive.html">VIEW ARCHIVE</a>
                 </div>
 
             </div>
@@ -150,11 +140,8 @@
                 COLLECTION
             </div>
 
-            <div class="mobile-content">
-
-                <a href="s1.html">S1 — BETWEEN WIND AND WATER</a>
-                <a href="s2.html">S2 — OPEN SPACE</a>
-
+            <div class="mobile-content" data-season-links>
+                <a href="season.html?slug=s2-open-space">S2 — OPEN SPACE</a>
             </div>
 
         </div>
@@ -184,11 +171,8 @@
                 ARCHIVE
             </div>
 
-            <div class="mobile-content">
-
-                <a href="s1.html">S1</a>
-                <a href="s2.html">S2</a>
-
+            <div class="mobile-content" data-archive-links>
+                <a href="archive.html">VIEW ARCHIVE</a>
             </div>
 
         </div>
@@ -227,8 +211,15 @@
 
     </section>
 
+    <nav class="site-legal" aria-label="Legal">
+        <a href="shipping-policy.html">SHIPPING</a><a href="returns-policy.html">RETURNS</a>
+        <a href="privacy-policy.html">PRIVACY</a><a href="terms.html">TERMS</a>
+        <a href="cookies.html">COOKIES</a><a href="contact.html">CONTACT</a>
+    </nav>
+
 
     <script src="api.js"></script>
+    <script src="collection-nav.js"></script>
     <script src="script.js"></script>
     <script src="account-ui.js"></script>
     

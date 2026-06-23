@@ -17,9 +17,23 @@
             <div id="checkout-total" class="cart-total"></div>
         </section>
         <section class="account-section">
-            <h2>DELIVERY ADDRESS</h2>
-            <div id="checkout-addresses" class="address-list"></div>
-            <a class="quiet-link" href="account.html">MANAGE ADDRESSES</a>
+            <h2>CONTACT DETAILS</h2>
+            <form id="checkout-contact" class="yo-form compact-form">
+                <label>FIRST NAME<input name="firstName" required maxlength="80" autocomplete="given-name"></label>
+                <label>LAST NAME<input name="lastName" required maxlength="80" autocomplete="family-name"></label>
+                <label>EMAIL<input name="email" type="email" required maxlength="254" autocomplete="email"></label>
+                <label>PHONE<input name="phone" type="tel" required maxlength="20" autocomplete="tel" pattern="\+?[0-9 ()-]{7,20}"></label>
+            </form>
+        </section>
+        <section class="account-section">
+            <h2>FULFILMENT</h2>
+            <div class="fulfilment-tabs">
+                <label class="address-choice"><input type="radio" name="shipping-method" value="DELIVERY" checked> DELIVERY</label>
+                <label class="address-choice"><input type="radio" name="shipping-method" value="PICKUP"> PICKUP</label>
+            </div>
+            <div id="delivery-panel"><div id="checkout-addresses" class="address-list"></div><a class="quiet-link" href="account.html">MANAGE ADDRESSES</a></div>
+            <div id="pickup-panel" class="address-list hidden"></div>
+            <p id="shipping-quote" class="form-status"></p>
         </section>
         <button id="place-order" class="buy-button" type="button" disabled>PLACE ORDER</button>
         <p id="checkout-status" class="form-status" aria-live="polite"></p>

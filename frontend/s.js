@@ -3,34 +3,36 @@
 async function loadCollection() {
     const container = document.getElementById("looks-container");
     try {
-        const products = await YOApi.getProducts();
-        const collection = products.filter((product) => (product.season || "").toLowerCase().startsWith(COLLECTION_SEASON.toLowerCase()));
-        collection.forEach((product) => {
-            product.images.forEach((source, index) => {
-                const section = document.createElement("section");
-                section.className = "look";
-                const image = document.createElement("img");
-                image.src = YOApi.imageUrl(source.url);
-                image.alt = source.alt || product.title;
-                image.loading = index === 0 ? "eager" : "lazy";
-                section.appendChild(image);
-                if (index === 0) {
-                    const info = document.createElement("div");
-                    info.className = "look-info";
-                    const season = document.createElement("p");
-                    season.textContent = product.season || COLLECTION_SEASON;
-                    const title = document.createElement("h2");
-                    title.textContent = product.title;
-                    const variant = product.variants[0];
-                    const price = document.createElement("span");
-                    price.textContent = variant ? YOApi.formatMoney(variant.priceMinor, variant.currency) : "";
-                    info.append(season, title, price);
-                    section.appendChild(info);
-                }
-                container.appendChild(section);
-            });
+        const querySlug = new URLSearchParams(window.location.search).get("slug");
+        const previewToken = new URLSearchParams(window.location.search).get("preview");
+        const slug = querySlug || (typeof COLLECTION_SLUG === "string" ? COLLECTION_SLUG : "");
+        if (!slug) throw new Error("Season is not selected");
+        const collection = previewToken ? await YOApi.getSeasonPreview(slug, previewToken) : await YOApi.getSeason(slug);
+        document.title = `YO — ${collection.code} ${collection.title}`;
+        document.querySelector(".shop-title").textContent = collection.code.toLowerCase();
+        collection.images.forEach((source, index) => {
+            const section = document.createElement("section");
+            section.className = "look";
+            const image = document.createElement("img");
+            image.src = YOApi.imageUrl(source.url);
+            image.alt = source.alt || collection.title;
+            image.loading = index === 0 ? "eager" : "lazy";
+            section.appendChild(image);
+            if (index === 0) {
+                const info = document.createElement("div");
+                info.className = "look-info";
+                const seasonMeta = document.createElement("p");
+                seasonMeta.textContent = `${collection.code} / ${collection.status}`;
+                const title = document.createElement("h2");
+                title.textContent = collection.title;
+                const description = document.createElement("span");
+                description.textContent = collection.description;
+                info.append(seasonMeta, title, description);
+                section.appendChild(info);
+            }
+            container.appendChild(section);
         });
-        if (!collection.length) {
+        if (!collection.images.length) {
             const empty = document.createElement("p");
             empty.className = "shop-message";
             empty.textContent = "COLLECTION COMING SOON";

@@ -68,7 +68,8 @@ export class UsersService {
       where: { userId },
       select: {
         id: true, status: true, currency: true, subtotalMinor: true, shippingMinor: true,
-        totalMinor: true, createdAt: true, updatedAt: true,
+        totalMinor: true, shippingMethod: true, shippingCountryCode: true,
+        pickupLocationSnapshot: true, createdAt: true, updatedAt: true,
         items: { select: { productIdSnapshot: true, skuSnapshot: true, titleSnapshot: true, sizeSnapshot: true, unitPriceMinor: true, quantity: true } },
       },
       orderBy: { createdAt: 'desc' },

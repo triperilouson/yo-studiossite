@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: http://127.0.0.1:3000 http://localhost:3000; connect-src 'self' http://127.0.0.1:3000 http://localhost:3000; base-uri 'none'; frame-ancestors 'none'">
+    <title>YO — GAME EDITOR</title>
+    <link rel="stylesheet" href="game-editor.css">
+</head>
+<body>
+<div id="editor-gate" class="editor-gate"><strong>YO</strong><span>VERIFYING SUPER_ADMIN</span></div>
+<main id="editor-app" class="editor-app hidden">
+    <header class="editor-header">
+        <a href="admin.html">← CONTROL ROOM</a>
+        <div><strong>GAME ASSET / LEVEL EDITOR</strong><span id="editor-identity"></span></div>
+        <p id="editor-status" aria-live="polite">READY</p>
+    </header>
+
+    <aside class="asset-library">
+        <header><h1>ASSETS</h1><button id="upload-trigger" type="button">+ PNG</button></header>
+        <input id="asset-upload" type="file" accept="image/png" hidden>
+        <input id="asset-search" type="search" placeholder="SEARCH ASSET">
+        <select id="asset-category"><option value="">ALL CATEGORIES</option></select>
+        <div id="asset-list" class="asset-list"></div>
+    </aside>
+
+    <section class="editor-workspace">
+        <nav class="editor-tabs">
+            <button class="active" data-mode="asset" type="button">ASSET MASKS</button>
+            <button data-mode="level" type="button">LEVEL PLACEMENT</button>
+        </nav>
+        <div class="editor-toolbar" data-toolbar="asset">
+            <button class="active" data-tool="select" type="button">SELECT</button>
+            <button data-tool="barrier" type="button">BARRIER</button>
+            <button data-tool="walkable" type="button">WALKABLE</button>
+            <button data-tool="stairsUp" type="button">STAIRS UP</button>
+            <button data-tool="stairsDown" type="button">STAIRS DOWN</button>
+            <button data-tool="occlusion" type="button">OCCLUSION</button>
+            <button data-tool="baseline" type="button">DEPTH LINE</button>
+            <button data-tool="anchor" type="button">ANCHOR</button>
+            <button data-tool="erase" type="button">ERASE</button>
+            <select id="draw-mode"><option value="polygon">POLYGON</option><option value="brush">BRUSH</option></select>
+            <label>BRUSH <input id="brush-size" type="number" min="1" max="256" value="24"></label>
+            <button id="finish-shape" type="button">FINISH</button>
+            <button id="undo-editor" type="button">UNDO</button><button id="redo-editor" type="button">REDO</button>
+            <label><input id="show-masks" type="checkbox" checked> MASKS</label>
+            <button id="preview-asset" type="button">PLAY</button>
+        </div>
+        <div class="editor-toolbar hidden" data-toolbar="level">
+            <button id="add-to-level" type="button">ADD SELECTED ASSET</button>
+            <label>SNAP <select id="snap-size"><option value="0">OFF</option><option>8</option><option selected>16</option><option>32</option></select></label>
+            <button id="duplicate-object" type="button">DUPLICATE</button><button id="delete-object" type="button">DELETE</button>
+            <button id="save-level" type="button">SAVE LEVEL</button><button id="export-level" type="button">EXPORT JSON</button><button id="import-level" type="button">IMPORT JSON</button>
+        </div>
+        <div class="canvas-shell"><canvas id="editor-canvas" width="1200" height="760"></canvas></div>
+    </section>
+
+    <aside class="editor-inspector">
+        <section data-panel="asset">
+            <small>SELECTED ASSET</small><h2 id="selected-asset-name">NONE</h2>
+            <img id="selected-asset-preview" alt="">
+            <div class="inspector-grid"><span>SIZE</span><b id="asset-size">—</b><span>CATEGORY</span><b id="asset-category-label">—</b></div>
+            <label>LINKED STORE PRODUCT
+                <select id="asset-product"><option value="">NO PRODUCT / DECOR ONLY</option></select>
+            </label>
+            <label>HEIGHT START<input id="height-start" type="number" value="0"></label>
+            <label>HEIGHT END<input id="height-end" type="number" value="64"></label>
+            <label>SLOPE<input id="slope-strength" type="number" min="0.01" max="20" step="0.1" value="1"></label>
+            <label>DIRECTION<select id="stairs-direction"><option value="right">RIGHT</option><option value="left">LEFT</option><option value="up">UP</option><option value="down">DOWN</option></select></label>
+            <div class="mask-counts" id="mask-counts"></div>
+            <button id="save-asset-config" class="primary" type="button">SAVE ASSET CONFIG</button>
+            <button id="delete-asset" class="danger" type="button">DELETE UPLOADED ASSET</button>
+        </section>
+        <section class="hidden" data-panel="level">
+            <small>LEVEL</small>
+            <label>SLUG<input id="level-slug" value="yo-showroom"></label>
+            <label>NAME<input id="level-name" value="YO SHOWROOM"></label>
+            <label>WIDTH<input id="level-width" type="number" value="1280"></label>
+            <label>HEIGHT<input id="level-height" type="number" value="768"></label>
+            <label class="check"><input id="level-active" type="checkbox" checked> ACTIVE LEVEL</label>
+            <hr><small>SELECTED OBJECT</small>
+            <div id="object-fields" class="object-fields disabled">
+                <label>X<input data-object="x" type="number"></label><label>Y<input data-object="y" type="number"></label>
+                <label>Z<input data-object="z" type="number"></label><label>ROTATION<input data-object="rotation" type="number"></label>
+                <label>SCALE X<input data-object="scaleX" type="number" step="0.05"></label><label>SCALE Y<input data-object="scaleY" type="number" step="0.05"></label>
+                <label>DEPTH OFFSET<input data-object="depthOffset" type="number"></label><label>LAYER<input data-object="layer"></label>
+                <label class="check"><input data-object="flipX" type="checkbox"> FLIP X</label><label class="check"><input data-object="flipY" type="checkbox"> FLIP Y</label>
+                <label class="check"><input data-object="locked" type="checkbox"> LOCKED</label>
+                <button id="reset-object" type="button">RESET TRANSFORM</button>
+            </div>
+            <textarea id="level-json" placeholder="LEVEL JSON IMPORT / EXPORT"></textarea>
+        </section>
+    </aside>
+</main>
+<script src="api.js"></script>
+<script type="module" src="game-editor.js"></script>
+</body>
+</html>

@@ -38,5 +38,29 @@ integrationSuite('PostgreSQL transaction integration', () => {
 
     await expect(prisma.user.findUnique({ where: { email } })).resolves.toBeNull();
   });
-});
 
+  it('rejects an order with negative monetary totals at the database boundary', async () => {
+    const email = `negative-order-${randomUUID()}@example.test`;
+    const user = await prisma.user.create({
+      data: { email, passwordHash: 'integration-test-only', firstName: 'Negative', lastName: 'Order' },
+    });
+    try {
+      await expect(prisma.order.create({
+        data: {
+          userId: user.id,
+          emailSnapshot: email,
+          phoneSnapshot: '+972500000000',
+          nameSnapshot: 'Negative Order',
+          currency: 'ILS',
+          subtotalMinor: -1,
+          shippingMinor: 0,
+          totalMinor: -1,
+          idempotencyKey: randomUUID(),
+        },
+      })).rejects.toThrow();
+      await expect(prisma.order.count({ where: { userId: user.id } })).resolves.toBe(0);
+    } finally {
+      await prisma.user.delete({ where: { id: user.id } });
+    }
+  });
+});

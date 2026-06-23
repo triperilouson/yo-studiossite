@@ -1,0 +1,34 @@
+*{box-sizing:border-box}
+:root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;background:#050606;color:#d5d2c8}
+html,body{margin:0;min-height:100%;background:#050606}
+body{overflow-x:hidden}
+button,a{font:inherit}
+.showroom-page{min-height:100vh;padding:18px clamp(12px,2.2vw,36px) 22px;display:grid;grid-template-rows:auto 1fr auto;gap:12px;background:radial-gradient(circle at 50% 15%,#191814 0,transparent 44%),#050606}
+.showroom-header{display:flex;justify-content:space-between;align-items:center;max-width:1280px;width:100%;margin:auto;color:rgba(226,222,207,.52);font-size:8px;letter-spacing:2.5px}
+.showroom-header a{color:rgba(238,234,220,.76);text-decoration:none;font-size:10px;font-weight:700;letter-spacing:3px}
+.showroom-stage{position:relative;width:min(1280px,100%,calc((100vh - 100px)*1.7778));margin:auto;align-self:center;overflow:hidden;border:1px solid rgba(219,203,166,.17);background:#080909;box-shadow:0 35px 110px rgba(0,0,0,.8)}
+#showroom-canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;outline:none}
+.showroom-scanlines{position:absolute;inset:0;pointer-events:none;z-index:8;background:repeating-linear-gradient(transparent 0 3px,rgba(225,209,174,.025) 4px);mix-blend-mode:screen;box-shadow:inset 0 0 80px rgba(0,0,0,.75)}
+.showroom-hud{position:absolute;z-index:10;left:18px;top:18px;max-width:260px;padding:11px 14px;border-left:1px solid rgba(225,198,142,.48);background:linear-gradient(90deg,rgba(5,7,7,.82),rgba(5,7,7,.08));pointer-events:none}
+.showroom-hud small{color:rgba(226,199,144,.56);font-size:7px;letter-spacing:2px}
+.showroom-hud p{margin:8px 0 0;color:rgba(238,233,218,.72);font:8px/1.4 "Courier New",monospace;letter-spacing:1.2px}
+.showroom-hud p.error,.showroom-toast.error{color:#d98676}
+.showroom-cart-panel{position:absolute;z-index:10;right:16px;top:16px;width:min(210px,26%);border:1px solid rgba(215,201,169,.15);background:rgba(6,8,8,.78);backdrop-filter:blur(5px)}
+.showroom-cart-panel header{display:flex;justify-content:space-between;padding:9px 11px;border-bottom:1px solid rgba(215,201,169,.11);font-size:7px;letter-spacing:1.6px;color:rgba(232,224,204,.58)}
+.showroom-cart-panel strong{color:#d9c28d}
+.showroom-cart-panel ul{list-style:none;margin:0;padding:7px 11px;display:grid;gap:5px;max-height:90px;overflow:auto}
+.showroom-cart-panel li{display:flex;justify-content:space-between;gap:8px;color:rgba(235,230,216,.64);font:7px/1.35 "Courier New",monospace;text-transform:uppercase}
+.showroom-cart-panel small{color:rgba(218,191,137,.72)}
+.showroom-toast{position:absolute;z-index:14;left:50%;bottom:24px;transform:translate(-50%,8px);padding:9px 13px;background:rgba(8,9,9,.9);border:1px solid rgba(225,199,143,.22);color:#d7c491;font:8px "Courier New",monospace;letter-spacing:1.2px;opacity:0;transition:.2s;pointer-events:none}
+.showroom-toast.visible{opacity:1;transform:translate(-50%,0)}
+.showroom-picker{position:absolute;z-index:20;left:50%;top:50%;width:min(330px,80%);padding:22px;transform:translate(-50%,-50%);border:1px solid rgba(225,202,153,.24);background:rgba(7,9,9,.96);box-shadow:0 25px 80px rgba(0,0,0,.75)}
+.showroom-picker.hidden{display:none}
+.showroom-picker>button{position:absolute;right:12px;top:8px;border:0;background:none;color:rgba(255,255,255,.5);font-size:18px}
+.showroom-picker small{color:rgba(216,190,137,.58);font-size:7px;letter-spacing:2px}
+.showroom-picker h2{margin:10px 0 18px;font-size:20px;font-weight:500;letter-spacing:-.5px;color:rgba(240,235,219,.8)}
+#showroom-size-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:7px}
+#showroom-size-options button{padding:10px 7px;border:1px solid rgba(223,200,151,.18);background:rgba(223,200,151,.045);color:rgba(235,227,207,.68);font-size:7px;letter-spacing:1px}
+#showroom-size-options button:hover{border-color:rgba(223,200,151,.48);color:#e6d6b3}
+.showroom-controls{display:flex;justify-content:center;align-items:center;gap:24px;color:rgba(226,220,204,.32);font-size:6px;letter-spacing:1.8px}
+.showroom-controls button{display:none;width:42px;height:36px;border:1px solid rgba(225,200,151,.24);background:rgba(225,200,151,.06);color:#ddc894}
+@media(max-width:760px){.showroom-page{padding:10px 8px 18px}.showroom-cart-panel{width:34%}.showroom-cart-panel ul{display:none}.showroom-hud{left:9px;top:9px;padding:8px}.showroom-controls span{display:none}.showroom-controls button{display:block}.showroom-picker{position:fixed}.showroom-stage{width:100%}}

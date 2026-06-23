@@ -32,6 +32,11 @@ All business APIs are versioned under `/api/v1`.
 - `GET /health`
 - `GET /api/v1/products`
 - `GET /api/v1/products/:slug`
+- `GET /api/v1/seasons`
+- `GET /api/v1/seasons/featured/current`
+- `GET /api/v1/seasons/preview/:slug?token=...`
+- `GET /api/v1/seasons/:slug`
+- `GET /api/v1/shipping/options`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/refresh`
@@ -40,6 +45,8 @@ All business APIs are versioned under `/api/v1`.
 - `POST /api/v1/auth/password-reset/confirm`
 - `POST /api/v1/auth/email/verify`
 - `POST /api/v1/payments/webhooks/grow` (signature verification is mandatory)
+- `GET /api/v1/game-assets/:id/image`
+- `GET /api/v1/game-assets/levels/active`
 
 ### Customer account
 
@@ -52,6 +59,7 @@ All business APIs are versioned under `/api/v1`.
 - `PATCH/DELETE /api/v1/cart/items/:id`
 - `DELETE /api/v1/cart`
 - `POST /api/v1/orders/checkout`
+- `POST /api/v1/shipping/quote`
 - `GET /api/v1/orders/:id`
 - `POST /api/v1/payments/orders/:orderId/session`
 
@@ -60,12 +68,19 @@ Checkout requires an `Idempotency-Key` header with 16–128 safe characters.
 ### Administration
 
 - `GET/POST/PATCH /api/v1/admin/products...`
+- `GET/POST/PATCH /api/v1/admin/seasons...`
+- `POST /api/v1/admin/seasons/:id/preview-token`
+- `GET/POST/PATCH /api/v1/admin/shipping...`
 - `PATCH /api/v1/admin/products/variants/:id/inventory`
 - `GET/PATCH /api/v1/admin/orders...`
 - `GET/PATCH /api/v1/admin/users...`
 - `GET/DELETE /api/v1/admin/security/sessions...`
 - `POST /api/v1/admin/security/sessions/revoke-others`
 - `POST /api/v1/admin/security/mfa/enroll|confirm|disable`
+
+The Game Asset/Level Editor is intentionally stricter than the rest of the admin area: every
+`/api/v1/admin/game-editor/*` route requires `SUPER_ADMIN`. It stores validated PNG data and
+versioned mask/level JSON separately. Built-in assets may be reconfigured but cannot be deleted.
 
 To grant administrator access, sign in as `SUPER_ADMIN`, open **USERS**, select `ADMIN` for the target account, click **SAVE**, and confirm with the current super-admin password. The backend rejects this operation from an ordinary `ADMIN`, records the action, and revokes the target user's existing sessions. Grant `SUPER_ADMIN` only to an emergency owner account.
 
@@ -90,7 +105,7 @@ Serve `/frontend` over HTTP (for example on `http://localhost:4173`) rather than
 
 - Production database: PostgreSQL only.
 - Prisma schema: `prisma/schema.prisma`.
-- Migration: `prisma/migrations/20260620150000_initial_commerce/migration.sql`.
+- Migrations: `prisma/migrations/*/migration.sql`.
 - Unit tests: `pnpm test`.
 - PostgreSQL integration tests: migrate a dedicated database whose name contains `test`, set `TEST_DATABASE_URL`, then run `pnpm test:integration`.
 - Build: `pnpm build`.

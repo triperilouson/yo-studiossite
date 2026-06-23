@@ -24,9 +24,13 @@ describe('OrdersService checkout', () => {
       $executeRaw: vi.fn().mockResolvedValue(0),
     };
     const prisma = { $transaction: vi.fn((callback) => callback(tx)) };
-    const service = new OrdersService(prisma as never, {} as never);
+    const shipping = { resolve: vi.fn() };
+    const service = new OrdersService(prisma as never, {} as never, shipping as never);
 
-    await expect(service.checkout('user', 'address', 'safe-idempotency-key'))
+    await expect(service.checkout('user', {
+      method: 'DELIVERY', addressId: 'address', firstName: 'A', lastName: 'B',
+      email: 'buyer@example.com', phone: '+972500000000',
+    } as never, 'safe-idempotency-key'))
       .rejects.toThrow('YO-L is out of stock');
     expect(tx.order.create).not.toHaveBeenCalled();
   });

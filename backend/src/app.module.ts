@@ -18,6 +18,9 @@ import { AppConfigModule } from './config/config.module';
 import { CommonModule } from './common/common.module';
 import { generateCorrelationId } from './common/logging/correlation-id.hook';
 import { AdminSecurityModule } from './admin-security/admin-security.module';
+import { SeasonsModule } from './seasons/seasons.module';
+import { ShippingModule } from './shipping/shipping.module';
+import { GameEditorModule } from './game-editor/game-editor.module';
 
 @Module({
   imports: [
@@ -45,6 +48,9 @@ import { AdminSecurityModule } from './admin-security/admin-security.module';
     OrdersModule,
     PaymentsModule,
     AdminSecurityModule,
+    SeasonsModule,
+    ShippingModule,
+    GameEditorModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

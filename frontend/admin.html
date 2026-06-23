@@ -15,10 +15,13 @@
             <nav class="admin-nav" aria-label="Administration">
                 <button class="nav-item active" data-view="dashboard" type="button">OVERVIEW <span>01</span></button>
                 <button class="nav-item" data-view="products" type="button">PRODUCTS <span>02</span></button>
-                <button class="nav-item" data-view="orders" type="button">ORDERS <span>03</span></button>
-                <button class="nav-item" data-view="users" type="button">USERS <span>04</span></button>
-                <button class="nav-item" data-view="security" type="button">SECURITY <span>05</span></button>
-                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>06</span></button>
+                <button class="nav-item" data-view="seasons" type="button">SEASONS <span>03</span></button>
+                <button class="nav-item" data-view="shipping" type="button">SHIPPING <span>04</span></button>
+                <button class="nav-item" data-view="orders" type="button">ORDERS <span>05</span></button>
+                <button class="nav-item" data-view="users" type="button">USERS <span>06</span></button>
+                <button class="nav-item" data-view="security" type="button">SECURITY <span>07</span></button>
+                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>08</span></button>
+                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>09</span></a>
             </nav>
             <div class="admin-presence"><i></i><span>SECURE SESSION</span></div>
         </aside>
@@ -49,6 +52,42 @@
                 <div class="view-toolbar"><div><h2>PRODUCT CATALOGUE</h2><p>Database-backed collection and inventory.</p></div><button id="open-product-modal" class="primary-action" type="button">＋ ADD PRODUCT</button></div>
                 <div class="filter-row"><input id="product-search" type="search" placeholder="SEARCH NAME, SKU OR CATEGORY"><select id="product-status-filter"><option value="">ALL STATUSES</option><option>ACTIVE</option><option>DRAFT</option><option>INACTIVE</option><option>ARCHIVED</option></select></div>
                 <div id="admin-products" class="product-admin-grid"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="seasons">
+                <div class="view-toolbar"><div><h2>EDITORIAL SEASONS</h2><p>Independent lookbook pages. Product photos are never reused here.</p></div><button id="open-season-modal" class="primary-action" type="button">+ ADD SEASON</button></div>
+                <div id="admin-seasons" class="product-admin-grid"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="shipping">
+                <div class="view-toolbar"><div><h2>SHIPPING RULES</h2><p>Backend-controlled destinations, prices, delivery windows and pickup.</p></div></div>
+                <div class="dashboard-split">
+                    <form id="country-form" class="admin-panel admin-inline-form">
+                        <div class="panel-heading"><h2>ADD COUNTRY</h2></div>
+                        <div class="form-grid">
+                            <label>ISO CODE<input name="code" required pattern="[A-Z]{2}" maxlength="2" placeholder="IL"></label>
+                            <label>NAME<input name="name" required maxlength="100" placeholder="Israel"></label>
+                            <label>PRICE ILS<input name="price" type="number" min="0" step="0.01" required></label>
+                            <label>FREE FROM ILS<input name="freeFrom" type="number" min="0" step="0.01"></label>
+                            <label>MIN DAYS<input name="minDays" type="number" min="0" max="365" required></label>
+                            <label>MAX DAYS<input name="maxDays" type="number" min="0" max="365" required></label>
+                        </div>
+                        <button class="primary-action" type="submit">ADD DESTINATION</button>
+                    </form>
+                    <form id="pickup-form" class="admin-panel admin-inline-form">
+                        <div class="panel-heading"><h2>ADD PICKUP LOCATION</h2></div>
+                        <div class="form-grid">
+                            <label>SLUG<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="tel-aviv-studio"></label>
+                            <label>NAME<input name="name" required maxlength="120" placeholder="YO TEL AVIV"></label>
+                            <label>COUNTRY<input name="country" required pattern="[A-Z]{2}" maxlength="2" value="IL"></label>
+                            <label>CITY<input name="city" required maxlength="120"></label>
+                            <label class="full-field">ADDRESS<input name="address" required maxlength="300"></label>
+                        </div>
+                        <button class="primary-action" type="submit">ADD PICKUP</button>
+                    </form>
+                </div>
+                <div class="view-toolbar"><div><h2>DELIVERY COUNTRIES</h2></div></div><div id="shipping-countries" class="admin-table"></div>
+                <div class="view-toolbar"><div><h2>PICKUP LOCATIONS</h2></div></div><div id="pickup-locations" class="admin-table"></div>
             </section>
 
             <section class="admin-view" data-view-panel="orders">
@@ -85,6 +124,26 @@
             <div class="form-section"><div class="section-heading"><h3>02 / IMAGES</h3><button id="add-image-row" class="secondary-action" type="button">＋ ADD GALLERY IMAGE</button></div><p class="field-note">CATALOGUE PREVIEW</p><div id="preview-image-row" class="dynamic-rows"></div><p class="field-note">PRODUCT GALLERY · UP TO 19 ADDITIONAL IMAGES</p><div id="gallery-image-rows" class="dynamic-rows"></div></div>
             <div class="form-section"><div class="section-heading"><h3>03 / SIZES & INVENTORY</h3><button id="add-variant-row" class="secondary-action" type="button">＋ ADD SIZE</button></div><div class="variant-labels"><span>SIZE</span><span>SKU</span><span>PRICE (ILS)</span><span>STOCK</span><span>ACTIVE</span><span></span></div><div id="variant-rows" class="dynamic-rows"></div></div>
             <footer><p>Prices and availability become authoritative only after saving to backend.</p><button id="create-product" class="primary-action" type="submit">CREATE PRODUCT</button></footer>
+        </form>
+    </dialog>
+
+    <dialog id="season-dialog" class="product-dialog">
+        <form id="season-form" method="dialog">
+            <header><div><small>EDITORIAL LOOKBOOK</small><h2 id="season-dialog-title">CREATE SEASON</h2></div><button id="close-season-modal" class="icon-button" type="button" aria-label="Close">×</button></header>
+            <input name="id" type="hidden">
+            <div class="form-section"><h3>01 / IDENTITY</h3><div class="form-grid">
+                <label>CODE<input name="code" required pattern="S[A-Z0-9-]{1,19}" placeholder="S3"></label>
+                <label>SLUG<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="s3-new-horizon"></label>
+                <label>TITLE<input name="title" required maxlength="120" placeholder="NEW HORIZON"></label>
+                <label>ORDER<input name="sortOrder" type="number" min="0" max="10000" value="0" required></label>
+                <label>STATUS<select name="status"><option>DRAFT</option><option>PUBLISHED</option><option>ARCHIVED</option></select></label>
+                <label>RELEASE DATE<input name="releaseAt" type="datetime-local"></label>
+                <label class="check-field"><input name="isFeatured" type="checkbox"> FEATURED DROP</label>
+                <label class="full-field">DESCRIPTION<textarea name="description" required maxlength="5000"></textarea></label>
+                <label class="full-field">CAMPAIGN TEXT<textarea name="campaignText" maxlength="2000" placeholder="Short editorial statement for the drop and countdown."></textarea></label>
+            </div></div>
+            <div class="form-section"><div class="section-heading"><h3>02 / SEASON IMAGES</h3><button id="add-season-image" class="secondary-action" type="button">+ ADD IMAGE</button></div><p class="field-note">These images belong to the season page, not to products. Maximum 20.</p><div id="season-image-rows" class="dynamic-rows"></div></div>
+            <footer><p>Draft seasons are invisible. Archived seasons appear only in the archive.</p><button id="save-season" class="primary-action" type="submit">SAVE SEASON</button></footer>
         </form>
     </dialog>
 
