@@ -45,6 +45,8 @@ button:disabled{ cursor:not-allowed; opacity:0.35; transform:none !important; }
 .account-panel.active{ display:block; }
 .yo-form{ display:grid; gap:24px; }
 .compact-form{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.compact-form .full-field{ grid-column:1 / -1; }
+.checkout-address-form{ margin:22px 0; padding:18px; border:1px solid var(--line); background:rgba(255,255,255,.02); }
 .yo-form label{ display:grid; gap:9px; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.5); }
 .yo-form input,.yo-form textarea,.yo-form select{ width:100%; border:0; border-bottom:1px solid rgba(255,255,255,0.2); border-radius:0; background:transparent; color:white; padding:11px 0; font:inherit; outline:none; }
 .yo-form textarea{ min-height:100px; resize:vertical; line-height:1.5; }

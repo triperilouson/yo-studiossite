@@ -185,14 +185,31 @@ async function loadUsers() {
             ["USER", "ADMIN", "SUPER_ADMIN"].forEach((value) => role.add(new Option(value, value, value === user.role, value === user.role)));
             role.disabled = state.admin.role !== "SUPER_ADMIN";
             const active = document.createElement("input"); active.type = "checkbox"; active.checked = user.isActive; active.disabled = state.admin.role !== "SUPER_ADMIN";
-            const action = state.admin.role === "SUPER_ADMIN" ? button("SAVE", async () => {
-                try {
-                    const currentPassword = window.prompt("Confirm with your SUPER_ADMIN password");
-                    if (!currentPassword) return;
-                    await YOApi.request(`/admin/users/${user.id}`, { method: "PATCH", auth: true, body: { role: role.value, isActive: active.checked, currentPassword } });
-                    setStatus("User access updated"); await loadUsers();
-                } catch (error) { setStatus(error.message, true); }
-            }) : node("span", "", "READ ONLY");
+            const action = node("div", "row-actions");
+            if (state.admin.role === "SUPER_ADMIN") {
+                action.append(
+                    button("SAVE", async () => {
+                        try {
+                            const currentPassword = window.prompt("Confirm with your SUPER_ADMIN password");
+                            if (!currentPassword) return;
+                            await YOApi.request(`/admin/users/${user.id}`, { method: "PATCH", auth: true, body: { role: role.value, isActive: active.checked, currentPassword } });
+                            setStatus("User access updated"); await loadUsers();
+                        } catch (error) { setStatus(error.message, true); }
+                    }),
+                    button("DELETE", async () => {
+                        try {
+                            if (user.id === state.admin.id) { setStatus("You cannot delete your own account", true); return; }
+                            const warning = user.email + "\n\nDelete users without orders, or anonymize users with order history?";
+                            if (!window.confirm(warning)) return;
+                            const currentPassword = window.prompt("Confirm delete with your SUPER_ADMIN password");
+                            if (!currentPassword) return;
+                            const result = await YOApi.request(`/admin/users/${user.id}`, { method: "DELETE", auth: true, body: { currentPassword } });
+                            setStatus(result.mode === "anonymized" ? "User anonymized because orders exist" : "User deleted");
+                            await loadUsers();
+                        } catch (error) { setStatus(error.message, true); }
+                    }, "danger")
+                );
+            } else action.append(node("span", "", "READ ONLY"));
             return tableRow([node("strong", "", user.email), role, active, action]);
         }));
     } catch (error) { setStatus(error.message, true); }

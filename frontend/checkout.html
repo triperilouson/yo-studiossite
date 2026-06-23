@@ -31,7 +31,18 @@
                 <label class="address-choice"><input type="radio" name="shipping-method" value="DELIVERY" checked> DELIVERY</label>
                 <label class="address-choice"><input type="radio" name="shipping-method" value="PICKUP"> PICKUP</label>
             </div>
-            <div id="delivery-panel"><div id="checkout-addresses" class="address-list"></div><a class="quiet-link" href="account.html">MANAGE ADDRESSES</a></div>
+            <div id="delivery-panel">
+                <div id="checkout-addresses" class="address-list"></div>
+                <form id="delivery-address-form" class="yo-form compact-form checkout-address-form">
+                    <label>COUNTRY<select name="country" required autocomplete="shipping country"></select></label>
+                    <label>CITY<input name="city" required maxlength="120" autocomplete="shipping address-level2"></label>
+                    <label>POSTAL CODE<input name="postalCode" required minlength="2" maxlength="30" autocomplete="shipping postal-code"></label>
+                    <label>STATE / REGION<input name="state" maxlength="120" autocomplete="shipping address-level1"></label>
+                    <label class="full-field">ADDRESS LINE 1<input name="line1" required minlength="2" maxlength="200" autocomplete="shipping address-line1"></label>
+                    <label class="full-field">ADDRESS LINE 2<input name="line2" maxlength="200" autocomplete="shipping address-line2"></label>
+                </form>
+                <a class="quiet-link" href="account.html">MANAGE SAVED ADDRESSES</a>
+            </div>
             <div id="pickup-panel" class="address-list hidden"></div>
             <p id="shipping-quote" class="form-status"></p>
         </section>

@@ -58,7 +58,14 @@ document.getElementById("mfa-form").addEventListener("submit", (event) => {
 });
 document.getElementById("register-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    void submitAuth(event.currentTarget, YOApi.register);
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    setAuthStatus("PLEASE WAIT");
+    YOApi.register(Object.fromEntries(new FormData(form).entries()))
+        .then(() => setAuthStatus("ACCOUNT CREATED. CHECK YOUR EMAIL TO VERIFY IT"))
+        .catch((error) => setAuthStatus(error.message, true))
+        .finally(() => { button.disabled = false; });
 });
 document.getElementById("reset-request-form").addEventListener("submit", (event) => {
     event.preventDefault();
