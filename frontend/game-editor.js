@@ -107,9 +107,27 @@ function drawAssetEditor() {
     ctx.restore();
 }
 
+function objectSize(object, asset) {
+    return {
+        width: object.sourceRect?.width || asset.config.width,
+        height: object.sourceRect?.height || asset.config.height,
+    };
+}
+
+function drawObjectImage(image, config, object) {
+    if (object.sourceRect) {
+        const rect = object.sourceRect;
+        ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+        return;
+    }
+    ctx.drawImage(image, 0, 0, config.width, config.height);
+}
+
 function transformObject(object, asset, draw) {
     const config = asset.config; const image = state.levelImages.get(asset.id); if (!image) return;
-    ctx.save();ctx.translate(object.x,object.y-object.z);ctx.rotate(object.rotation*Math.PI/180);ctx.scale((object.flipX?-1:1)*object.scaleX,(object.flipY?-1:1)*object.scaleY);ctx.translate(-config.anchor.x,-config.anchor.y);draw(image,config);ctx.restore();
+    const size = objectSize(object, asset);
+    const anchor = object.sourceRect ? { x: Math.round(size.width / 2), y: size.height } : config.anchor;
+    ctx.save();ctx.translate(object.x,object.y-object.z);ctx.rotate(object.rotation*Math.PI/180);ctx.scale((object.flipX?-1:1)*object.scaleX,(object.flipY?-1:1)*object.scaleY);ctx.translate(-anchor.x,-anchor.y);draw(image,config,size);ctx.restore();
 }
 
 function drawLevel() {
@@ -117,8 +135,8 @@ function drawLevel() {
     ctx.fillStyle="#171919";ctx.fillRect(0,0,state.level.width,state.level.height);ctx.strokeStyle="rgba(255,255,255,.055)";ctx.lineWidth=1/state.zoom;
     const grid=Number(document.getElementById("snap-size").value)||32;for(let x=0;x<=state.level.width;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,state.level.height);ctx.stroke();}for(let y=0;y<=state.level.height;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(state.level.width,y);ctx.stroke();}
     const sorted=[...state.level.objects].sort((a,b)=>(a.y+a.depthOffset)-(b.y+b.depthOffset));
-    sorted.forEach((object)=>{const asset=state.assets.find((item)=>item.id===object.assetId);if(!asset)return;transformObject(object,asset,(image,config)=>{ctx.drawImage(image,0,0,config.width,config.height);if(document.getElementById("show-masks").checked){allAssetShapes(config).forEach(({shape,kind})=>drawRawShape(shape,kind));}});});
-    if(state.selectedObject){const asset=state.assets.find((item)=>item.id===state.selectedObject.assetId);if(asset)transformObject(state.selectedObject,asset,(_image,config)=>{ctx.strokeStyle="#e4c75f";ctx.lineWidth=2/state.zoom;ctx.strokeRect(0,0,config.width,config.height);});}
+    sorted.forEach((object)=>{const asset=state.assets.find((item)=>item.id===object.assetId);if(!asset)return;transformObject(object,asset,(image,config)=>{drawObjectImage(image,config,object);if(document.getElementById("show-masks").checked&&!object.sourceRect){allAssetShapes(config).forEach(({shape,kind})=>drawRawShape(shape,kind));}});});
+    if(state.selectedObject){const asset=state.assets.find((item)=>item.id===state.selectedObject.assetId);if(asset)transformObject(state.selectedObject,asset,(_image,_config,size)=>{ctx.strokeStyle="#e4c75f";ctx.lineWidth=2/state.zoom;ctx.strokeRect(0,0,size.width,size.height);});}
     ctx.restore();
 }
 function allAssetShapes(config){return[...config.collisionMasks.map(shape=>({shape,kind:"barrier"})),...config.walkableMasks.map(shape=>({shape,kind:"walkable"})),...config.stairsZones.map(shape=>({shape,kind:shape.type})),...config.occlusionMasks.map(shape=>({shape,kind:"occlusion"}))];}
@@ -163,7 +181,7 @@ async function uploadAsset(file){if(!file||file.type!=="image/png"){setStatus("P
 function switchMode(mode){state.mode=mode;document.querySelectorAll("[data-mode]").forEach(button=>button.classList.toggle("active",button.dataset.mode===mode));document.querySelectorAll("[data-toolbar]").forEach(toolbar=>toolbar.classList.toggle("hidden",toolbar.dataset.toolbar!==mode));document.querySelectorAll("[data-panel]").forEach(panel=>panel.classList.toggle("hidden",panel.dataset.panel!==mode));if(mode==="level")void preloadLevelImages();}
 async function preloadLevelImages(){await Promise.all(state.assets.map(async asset=>{if(!state.levelImages.has(asset.id))state.levelImages.set(asset.id,await loadImage(apiImageUrl(asset.config.image)));}));}
 function levelPoint(event){const point=canvasPoint(event);return{x:(point.x-state.panX)/state.zoom,y:(point.y-state.panY)/state.zoom};}
-function objectAt(point){return[...state.level.objects].reverse().find(object=>{const asset=state.assets.find(item=>item.id===object.assetId);if(!asset)return false;const width=asset.width*object.scaleX,height=asset.height*object.scaleY;return point.x>=object.x-width/2&&point.x<=object.x+width/2&&point.y>=object.y-height&&point.y<=object.y;});}
+function objectAt(point){return[...state.level.objects].reverse().find(object=>{const asset=state.assets.find(item=>item.id===object.assetId);if(!asset)return false;const size=objectSize(object,asset);const width=size.width*object.scaleX,height=size.height*object.scaleY;return point.x>=object.x-width/2&&point.x<=object.x+width/2&&point.y>=object.y-height&&point.y<=object.y;});}
 function selectObject(object){state.selectedObject=object;const fields=document.getElementById("object-fields");fields.classList.toggle("disabled",!object);if(!object)return;fields.querySelectorAll("[data-object]").forEach(input=>{const key=input.dataset.object;input[input.type==="checkbox"?"checked":"value"]=object[key];});}
 function addToLevel(){if(!state.selected){setStatus("SELECT AN ASSET",true);return;}const object={id:crypto.randomUUID(),assetId:state.selected.id,x:snap(state.level.width/2),y:snap(state.level.height/2),z:0,rotation:0,scaleX:1,scaleY:1,flipX:false,flipY:false,layer:"furniture",depthOffset:0,locked:false};state.level.objects.push(object);selectObject(object);switchMode("level");}
 function duplicateObject(){if(!state.selectedObject)return;const copy={...clone(state.selectedObject),id:crypto.randomUUID(),x:state.selectedObject.x+16,y:state.selectedObject.y+16,locked:false};state.level.objects.push(copy);selectObject(copy);}

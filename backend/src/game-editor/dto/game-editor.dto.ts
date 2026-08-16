@@ -14,6 +14,13 @@ export class PointDto {
   @IsNumber() @Min(-8192) @Max(8192) y!: number;
 }
 
+export class RectDto {
+  @IsNumber() @Min(0) @Max(4096) x!: number;
+  @IsNumber() @Min(0) @Max(4096) y!: number;
+  @IsNumber() @Min(1) @Max(4096) width!: number;
+  @IsNumber() @Min(1) @Max(4096) height!: number;
+}
+
 export class MaskPolygonDto {
   @IsArray() @ArrayMinSize(2) @ArrayMaxSize(256) @ValidateNested({ each: true }) @Type(() => PointDto)
   points!: PointDto[];
@@ -75,6 +82,8 @@ export class LevelObjectDto {
   @IsNumber() @Min(-8192) @Max(8192) depthOffset!: number;
   @IsBoolean() locked!: boolean;
   @IsOptional() @IsString() @MaxLength(100) groupId?: string;
+  @IsOptional() @ValidateNested() @Type(() => RectDto) sourceRect?: RectDto;
+  @IsOptional() @ValidateNested() @Type(() => RectDto) collision?: RectDto;
 }
 
 export class SaveGameLevelDto {

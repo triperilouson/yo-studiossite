@@ -20,5 +20,7 @@ export class GameAssetsController {
       .send(Buffer.from(asset.imageData));
   }
 
+  @Get('levels/active-runtime') activeRuntimeLevel() { return this.editor.activeRuntimeLevel(); }
+
   @Get('levels/active') activeLevel() { return this.editor.activeLevel(); }
 }

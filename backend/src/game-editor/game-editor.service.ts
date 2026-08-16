@@ -107,11 +107,39 @@ export class GameEditorService {
     return this.prisma.gameLevel.findFirst({ where: { isActive: true }, orderBy: { updatedAt: 'desc' } });
   }
 
+  async activeRuntimeLevel() {
+    const level = await this.activeLevel();
+    if (!level) return null;
+    const config = level.config as { objects?: Array<{ assetId: string }> };
+    const assetIds = [...new Set((config.objects || []).map(({ assetId }) => assetId))];
+    const assets = assetIds.length ? await this.prisma.gameAsset.findMany({
+      where: { id: { in: assetIds } },
+      select: {
+        ...assetSelect,
+        product: {
+          select: {
+            id: true, slug: true, title: true, status: true,
+            images: { select: { id: true, url: true, alt: true, position: true }, orderBy: { position: 'asc' } },
+            variants: {
+              select: {
+                id: true, sku: true, size: true, priceMinor: true, currency: true,
+                stock: true, reservedStock: true, isActive: true,
+              },
+            },
+          },
+        },
+      },
+    }) : [];
+    return { level, assets };
+  }
+
   async saveLevel(actorId: string, input: SaveGameLevelDto) {
     const assetIds = [...new Set(input.objects.map(({ assetId }) => assetId))];
     const found = await this.prisma.gameAsset.count({ where: { id: { in: assetIds } } });
     if (found !== assetIds.length) throw new BadRequestException('Level references an unknown game asset');
-    const config = { version: 1, objects: input.objects } as unknown as Prisma.InputJsonValue;
+    const existing = await this.prisma.gameLevel.findUnique({ where: { slug: input.slug }, select: { config: true } });
+    const existingConfig = existing?.config && typeof existing.config === 'object' && !Array.isArray(existing.config) ? existing.config : {};
+    const config = { ...existingConfig, version: 1, objects: input.objects } as unknown as Prisma.InputJsonValue;
     const level = await this.prisma.$transaction(async (tx) => {
       if (input.isActive) await tx.gameLevel.updateMany({ where: { isActive: true, slug: { not: input.slug } }, data: { isActive: false } });
       return tx.gameLevel.upsert({

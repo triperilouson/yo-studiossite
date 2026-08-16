@@ -8,7 +8,15 @@ const keys = new Set();
 const camera = { x: 0, y: 0 };
 const player = { x: 620, y: 650, facing: "up", directionX: 0, directionY: -1, frame: 0, phase: 0, moving: false };
 const cart = { x: 342, y: 634, attached: false, facing: "left", items: [] };
-const runtimeProducts = PRODUCT_STATIONS.map((station) => ({ ...station, product: null, picked: false }));
+let world = { ...WORLD };
+let room = { ...ROOM };
+let staticObjects = OBJECTS;
+let staticInteractions = STATIC_INTERACTIONS;
+let lights = LIGHTS;
+let runtimeProducts = PRODUCT_STATIONS.map((station) => ({ ...station, product: null, picked: false, source: "legacy" }));
+let editorObjects = [];
+let runtimeAssets = new Map();
+let usingRuntimeLevel = false;
 const prompt = document.getElementById("showroom-prompt");
 const cartList = document.getElementById("showroom-cart-items");
 const cartCount = document.getElementById("showroom-cart-count");
@@ -21,16 +29,70 @@ let messageUntil = 0;
 let checkoutBusy = false;
 
 const dust = Array.from({ length: 80 }, (_, index) => ({
-    x: ROOM.left + (index * 137) % (ROOM.right - ROOM.left),
-    y: ROOM.top + (index * 79) % (ROOM.bottom - ROOM.top),
+    x: room.left + (index * 137) % (room.right - room.left),
+    y: room.top + (index * 79) % (room.bottom - room.top),
     speed: .012 + (index % 5) * .005,
     alpha: .045 + (index % 4) * .018,
 }));
 
 function loadImage(source) {
     return new Promise((resolve, reject) => {
-        const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = source;
+        const image = new Image(); image.crossOrigin = "anonymous"; image.onload = () => resolve(image); image.onerror = reject; image.src = source;
     });
+}
+
+function apiImageUrl(path) {
+    if (!path) return "";
+    if (/^https?:/.test(path)) return path;
+    if (["localhost", "127.0.0.1"].includes(location.hostname)) return `http://${location.hostname}:3000${path}`;
+    return `${YOApi.apiBase.replace(/\/api\/v1$/, "")}${path}`;
+}
+
+function pointInPolygon(point, points) {
+    let inside = false;
+    for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
+        const a = points[index]; const b = points[previous];
+        if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+}
+
+function distanceToSegment(point, a, b) {
+    const dx = b.x - a.x; const dy = b.y - a.y; const length = dx * dx + dy * dy;
+    const t = length ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length)) : 0;
+    return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+}
+
+function shapeContains(point, shape) {
+    if (!shape?.points?.length) return false;
+    if (shape.brushSize) return shape.points.some((value, index) => index && distanceToSegment(point, shape.points[index - 1], value) <= shape.brushSize / 2);
+    return shape.points.length > 2 && pointInPolygon(point, shape.points);
+}
+
+function worldToAssetPoint(point, object, config) {
+    const anchor = object.sourceRect ? { x: Math.round(object.sourceRect.width / 2), y: object.sourceRect.height } : config.anchor;
+    const radians = -(object.rotation || 0) * Math.PI / 180;
+    const translated = { x: point.x - object.x, y: point.y - (object.y - (object.z || 0)) };
+    const rotated = {
+        x: translated.x * Math.cos(radians) - translated.y * Math.sin(radians),
+        y: translated.x * Math.sin(radians) + translated.y * Math.cos(radians),
+    };
+    const scaleX = (object.scaleX || 1) * (object.flipX ? -1 : 1);
+    const scaleY = (object.scaleY || 1) * (object.flipY ? -1 : 1);
+    return { x: rotated.x / scaleX + anchor.x, y: rotated.y / scaleY + anchor.y };
+}
+
+function productFromAsset(asset) {
+    const product = asset?.product;
+    if (!product || product.status !== "ACTIVE") return null;
+    return {
+        ...product,
+        name: product.title,
+        variants: (product.variants || []).map((variant) => ({
+            ...variant,
+            available: Math.max(0, (variant.stock || 0) - (variant.reservedStock || 0)),
+        })),
+    };
 }
 
 async function loadAssets() {
@@ -50,19 +112,19 @@ function atlas(frameName, x, y, scale = 1) {
 }
 
 function drawBackdrop(time) {
-    ctx.fillStyle = "#080a0a"; ctx.fillRect(0, 0, WORLD.width, WORLD.height);
-    for (let y = 26; y < ROOM.top + 52; y += 64) {
-        for (let x = ROOM.left; x < ROOM.right; x += 64) ctx.drawImage(assets.tiles, 64, 0, 64, 64, x, y, 64, 64);
+    ctx.fillStyle = "#080a0a"; ctx.fillRect(0, 0, world.width, world.height);
+    for (let y = 26; y < room.top + 52; y += 64) {
+        for (let x = room.left; x < room.right; x += 64) ctx.drawImage(assets.tiles, 64, 0, 64, 64, x, y, 64, 64);
     }
-    ctx.fillStyle = "#101211"; ctx.fillRect(ROOM.left - 14, ROOM.top - 16, ROOM.right - ROOM.left + 28, 22);
-    ctx.fillStyle = "#050606"; ctx.fillRect(ROOM.left - 22, ROOM.top + 1, 22, ROOM.bottom - ROOM.top + 20); ctx.fillRect(ROOM.right, ROOM.top, 22, ROOM.bottom - ROOM.top + 20);
-    for (let y = ROOM.top; y < ROOM.bottom; y += 64) {
-        for (let x = ROOM.left; x < ROOM.right; x += 64) ctx.drawImage(assets.tiles, 0, 0, 64, 64, x, y, 64, 64);
+    ctx.fillStyle = "#101211"; ctx.fillRect(room.left - 14, room.top - 16, room.right - room.left + 28, 22);
+    ctx.fillStyle = "#050606"; ctx.fillRect(room.left - 22, room.top + 1, 22, room.bottom - room.top + 20); ctx.fillRect(room.right, room.top, 22, room.bottom - room.top + 20);
+    for (let y = room.top; y < room.bottom; y += 64) {
+        for (let x = room.left; x < room.right; x += 64) ctx.drawImage(assets.tiles, 0, 0, 64, 64, x, y, 64, 64);
     }
     // Floor joins and damp reflections.
     ctx.strokeStyle = "rgba(7,8,8,.5)"; ctx.lineWidth = 2;
-    for (let x = ROOM.left; x <= ROOM.right; x += 128) { ctx.beginPath(); ctx.moveTo(x, ROOM.top); ctx.lineTo(x, ROOM.bottom); ctx.stroke(); }
-    for (let y = ROOM.top; y <= ROOM.bottom; y += 96) { ctx.beginPath(); ctx.moveTo(ROOM.left, y); ctx.lineTo(ROOM.right, y); ctx.stroke(); }
+    for (let x = room.left; x <= room.right; x += 128) { ctx.beginPath(); ctx.moveTo(x, room.top); ctx.lineTo(x, room.bottom); ctx.stroke(); }
+    for (let y = room.top; y <= room.bottom; y += 96) { ctx.beginPath(); ctx.moveTo(room.left, y); ctx.lineTo(room.right, y); ctx.stroke(); }
     ctx.fillStyle = `rgba(213,180,118,${.025 + Math.sin(time * .0014) * .006})`;
     ctx.beginPath(); ctx.ellipse(805, 369, 160, 34, -.1, 0, Math.PI * 2); ctx.fill();
     // Pipes and wall lamps.
@@ -80,10 +142,33 @@ function drawObject(object) {
     atlas(object.frame, object.x, object.y);
 }
 
+function drawEditorObject(object) {
+    const asset = runtimeAssets.get(object.assetId);
+    if (!asset?.image || !asset.config) return;
+    const config = asset.config;
+    const source = object.sourceRect;
+    const width = source?.width || config.width;
+    const height = source?.height || config.height;
+    const anchor = source ? { x: Math.round(width / 2), y: height } : config.anchor;
+    ctx.save();
+    ctx.translate(Math.round(object.x), Math.round(object.y - (object.z || 0)));
+    ctx.rotate((object.rotation || 0) * Math.PI / 180);
+    ctx.scale((object.flipX ? -1 : 1) * (object.scaleX || 1), (object.flipY ? -1 : 1) * (object.scaleY || 1));
+    ctx.translate(-anchor.x, -anchor.y);
+    if (source) ctx.drawImage(asset.image, source.x, source.y, source.width, source.height, 0, 0, width, height);
+    else ctx.drawImage(asset.image, 0, 0, config.width, config.height);
+    ctx.restore();
+}
+
 function drawProduct(station) {
     if (station.picked) return;
+    if (station.source === "editor") return;
     ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(station.x + 32, station.y + 57, 27, 6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.drawImage(assets.products, station.sprite * 64, 0, 64, 64, station.x, station.y, 64, 64);
+}
+
+function editorObjectPicked(object) {
+    return runtimeProducts.some((station) => station.source === "editor" && station.id === object.id && station.picked);
 }
 
 function drawPlayer(time) {
@@ -100,6 +185,11 @@ function drawCart() {
         const station = runtimeProducts.find((candidate) => candidate.id === item.stationId);
         if (!station) return;
         const x = -17 + (index % 3) * 13; const y = -31 + Math.floor(index / 3) * 11;
+        if (station.source === "editor") {
+            const asset = runtimeAssets.get(station.assetId) || runtimeAssets.get(editorObjects.find((object) => object.id === station.id)?.assetId);
+            if (asset?.image) ctx.drawImage(asset.image, 0, 0, asset.config.width, asset.config.height, x, y, 14, 14);
+            return;
+        }
         ctx.drawImage(assets.products, station.sprite * 64, 0, 64, 64, x, y, 14, 14);
     });
     ctx.restore();
@@ -107,7 +197,7 @@ function drawCart() {
 
 function drawLighting(time) {
     ctx.save(); ctx.globalCompositeOperation = "screen";
-    LIGHTS.forEach((light, index) => {
+    lights.forEach((light, index) => {
         const pulse = 1 + Math.sin(time * light.speed + index * 1.7) * .08 + Math.sin(time * .017 + index) * .018;
         const radius = light.radius * pulse; const [r, g, b] = light.color;
         const gradient = ctx.createRadialGradient(light.x, light.y, 2, light.x, light.y, radius);
@@ -118,7 +208,7 @@ function drawLighting(time) {
     });
     ctx.restore();
     dust.forEach((particle) => {
-        particle.y -= particle.speed; if (particle.y < ROOM.top) particle.y = ROOM.bottom;
+        particle.y -= particle.speed; if (particle.y < room.top) particle.y = room.bottom;
         ctx.fillStyle = `rgba(235,218,178,${particle.alpha * (.6 + Math.sin(time * .002 + particle.x) * .3)})`;
         ctx.fillRect(Math.round(particle.x), Math.round(particle.y), 1, 1);
     });
@@ -129,8 +219,9 @@ function draw(time) {
     ctx.save(); ctx.translate(-Math.round(camera.x), -Math.round(camera.y));
     drawBackdrop(time);
     const renderQueue = [
-        ...OBJECTS.map((object) => ({ sortY: object.sortY, draw: () => drawObject(object) })),
-        ...runtimeProducts.filter((station) => !station.picked).map((station) => ({ sortY: station.sortY, draw: () => drawProduct(station) })),
+        ...staticObjects.map((object) => ({ sortY: object.sortY, draw: () => drawObject(object) })),
+        ...editorObjects.filter((object) => !editorObjectPicked(object)).map((object) => ({ sortY: object.y + (object.depthOffset || 0), draw: () => drawEditorObject(object) })),
+        ...runtimeProducts.filter((station) => !station.picked && station.source !== "editor").map((station) => ({ sortY: station.sortY, draw: () => drawProduct(station) })),
         { sortY: player.y, draw: () => drawPlayer(time) },
         { sortY: cart.y, draw: drawCart },
     ].sort((a, b) => a.sortY - b.sortY);
@@ -142,9 +233,23 @@ function draw(time) {
 }
 
 function collisionAt(x, y, radiusX = 10, radiusY = 7, ignoreParkedCart = false) {
-    if (x - radiusX < ROOM.left || x + radiusX > ROOM.right || y - radiusY < ROOM.top + 16 || y + radiusY > ROOM.bottom) return true;
+    if (x - radiusX < room.left || x + radiusX > room.right || y - radiusY < room.top + 16 || y + radiusY > room.bottom) return true;
     if (!ignoreParkedCart && !cart.attached && x + radiusX > cart.x - 35 && x - radiusX < cart.x + 35 && y + radiusY > cart.y - 18 && y - radiusY < cart.y + 18) return true;
-    return OBJECTS.some((object) => object.collision && x + radiusX > object.collision[0] && x - radiusX < object.collision[0] + object.collision[2] && y + radiusY > object.collision[1] && y - radiusY < object.collision[1] + object.collision[3]);
+    if (staticObjects.some((object) => object.collision && x + radiusX > object.collision[0] && x - radiusX < object.collision[0] + object.collision[2] && y + radiusY > object.collision[1] && y - radiusY < object.collision[1] + object.collision[3])) return true;
+    return editorObjects.some((object) => {
+        if (object.collision && x + radiusX > object.collision.x && x - radiusX < object.collision.x + object.collision.width && y + radiusY > object.collision.y && y - radiusY < object.collision.y + object.collision.height) return true;
+        const asset = runtimeAssets.get(object.assetId);
+        const masks = asset?.config?.collisionMasks || [];
+        if (!masks.length) return false;
+        const points = [
+            { x: x - radiusX, y },
+            { x: x + radiusX, y },
+            { x, y: y - radiusY },
+            { x, y: y + radiusY },
+            { x, y },
+        ];
+        return masks.some((mask) => points.some((point) => shapeContains(worldToAssetPoint(point, object, asset.config), mask)));
+    });
 }
 
 function desiredCartPosition(x = player.x, y = player.y) {
@@ -185,8 +290,8 @@ function update(delta, time) {
         const desired = desiredCartPosition(); cart.x += (desired.x - cart.x) * .28; cart.y += (desired.y - cart.y) * .28;
         cart.facing = player.facing;
     }
-    const desiredCameraX = Math.max(0, Math.min(WORLD.width - VIEW.width, player.x - VIEW.width * .5));
-    const desiredCameraY = Math.max(0, Math.min(WORLD.height - VIEW.height, player.y - VIEW.height * .55));
+    const desiredCameraX = Math.max(0, Math.min(world.width - VIEW.width, player.x - VIEW.width * .5));
+    const desiredCameraY = Math.max(0, Math.min(world.height - VIEW.height, player.y - VIEW.height * .55));
     camera.x += (desiredCameraX - camera.x) * Math.min(1, delta * .005); camera.y += (desiredCameraY - camera.y) * Math.min(1, delta * .005);
     if (time > messageUntil) {
         const interaction = nearestInteraction(); prompt.textContent = interaction ? `E — ${interaction.label}` : "WASD / ARROWS TO WALK";
@@ -197,7 +302,7 @@ function nearestInteraction() {
     const candidates = [];
     if (!cart.attached) candidates.push({ type: "cart", id: "cart", x: cart.x, y: cart.y, radius: 72, label: "TAKE CART" });
     runtimeProducts.filter((station) => !station.picked).forEach((station) => candidates.push({ type: "product", ...station, x: station.interactX, y: station.interactY, radius: 76, label: `TAKE ${station.product?.name || station.product?.title || station.fallbackName}` }));
-    STATIC_INTERACTIONS.forEach((interaction) => candidates.push({ type: "static", ...interaction }));
+    staticInteractions.forEach((interaction) => candidates.push({ type: "static", ...interaction }));
     let nearest = null; let distance = Infinity;
     candidates.forEach((candidate) => { const current = Math.hypot(player.x - candidate.x, player.y - candidate.y); if (current < candidate.radius && current < distance) { nearest = candidate; distance = current; } });
     return nearest;
@@ -284,7 +389,66 @@ async function transferToWebCart() {
     }
 }
 
+async function loadRuntimeLevel() {
+    try {
+        const runtime = await YOApi.getActiveRuntimeLevel();
+        if (!runtime?.level) return false;
+        const config = runtime.level.config || {};
+        const objects = Array.isArray(config.objects) ? config.objects : [];
+        if (!objects.length) return false;
+
+        world = { width: runtime.level.width || world.width, height: runtime.level.height || world.height };
+        room = config.room || room;
+        staticObjects = [];
+        staticInteractions = config.interactions || STATIC_INTERACTIONS;
+        lights = config.lights || LIGHTS;
+        usingRuntimeLevel = true;
+        editorObjects = objects.map((object) => ({ ...object }));
+
+        runtimeAssets = new Map((runtime.assets || []).map((asset) => [asset.id, asset]));
+        await Promise.all([...runtimeAssets.values()].map(async (asset) => {
+            const imagePath = asset.config?.image || `/api/v1/game-assets/${asset.id}/image`;
+            asset.image = await loadImage(apiImageUrl(imagePath));
+        }));
+
+        runtimeProducts = editorObjects
+            .map((object) => {
+                const asset = runtimeAssets.get(object.assetId);
+                const product = productFromAsset(asset);
+                if (!product) return null;
+                return {
+                    id: object.id,
+                    assetId: asset.id,
+                    assetSlug: asset.slug,
+                    fallbackName: asset.name,
+                    x: object.x,
+                    y: object.y,
+                    interactX: object.x,
+                    interactY: object.y,
+                    sortY: object.y + (object.depthOffset || 0),
+                    product,
+                    picked: false,
+                    source: "editor",
+                };
+            })
+            .filter(Boolean);
+
+        player.x = config.playerSpawn?.x ?? player.x;
+        player.y = config.playerSpawn?.y ?? player.y;
+        cart.x = config.cartSpawn?.x ?? cart.x;
+        cart.y = config.cartSpawn?.y ?? cart.y;
+        document.getElementById("showroom-signal").textContent = "LEVEL ONLINE";
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function loadProducts() {
+    if (usingRuntimeLevel) {
+        restoreGameCart(); updateCartUI();
+        return;
+    }
     try {
         const [products, links] = await Promise.all([YOApi.getProducts(), YOApi.getGameAssetProductLinks()]);
         const productById = new Map(products.map((product) => [product.id, product]));
@@ -307,5 +471,7 @@ document.getElementById("showroom-picker-close").addEventListener("click", () =>
 document.getElementById("showroom-action").addEventListener("click", interact);
 
 await loadAssets();
-camera.x = Math.max(0, Math.min(WORLD.width - VIEW.width, player.x - VIEW.width / 2)); camera.y = Math.max(0, Math.min(WORLD.height - VIEW.height, player.y - VIEW.height * .55));
+await loadRuntimeLevel();
+camera.x = Math.max(0, Math.min(world.width - VIEW.width, player.x - VIEW.width / 2)); camera.y = Math.max(0, Math.min(world.height - VIEW.height, player.y - VIEW.height * .55));
 updateCartUI(); void loadProducts(); requestAnimationFrame(frame);
+
