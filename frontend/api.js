@@ -150,6 +150,7 @@
         saveGameLevel: (body) => request("/admin/game-editor/levels", { method: "POST", auth: true, body }),
         getActiveGameLevel: () => request("/game-assets/levels/active"),
         getGameAssetProductLinks: () => request("/game-assets/runtime/product-links"),
+        uploadImage: (body) => request("/admin/media/images", { method: "POST", auth: true, body }),
         getCart: () => request("/cart", { auth: true }),
         addCartItem: (body) => request("/cart/items", { method: "POST", auth: true, body }),
         updateCartItem: (id, quantity) => request(`/cart/items/${encodeURIComponent(id)}`, { method: "PATCH", auth: true, body: { quantity } }),

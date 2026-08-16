@@ -84,13 +84,15 @@ function inventoryLine(variant) {
     stock.type = "number"; stock.min = "0"; stock.max = "1000000"; stock.value = variant.stock; stock.title = "Stock";
     const price = document.createElement("input");
     price.type = "number"; price.min = "0"; price.step = "0.01"; price.value = (variant.priceMinor / 100).toFixed(2); price.title = "Price ILS";
+    price.disabled = state.admin?.role !== "SUPER_ADMIN";
     const active = document.createElement("input");
     active.type = "checkbox"; active.checked = variant.isActive; active.title = "Active size";
     const save = button("SAVE", async () => {
         try {
+            const body = { stock: Number(stock.value), isActive: active.checked };
+            if (state.admin?.role === "SUPER_ADMIN") body.priceMinor = Math.round(Number(price.value) * 100);
             await YOApi.request(`/admin/products/variants/${variant.id}/inventory`, {
-                method: "PATCH", auth: true,
-                body: { stock: Number(stock.value), priceMinor: Math.round(Number(price.value) * 100), isActive: active.checked }
+                method: "PATCH", auth: true, body
             });
             setStatus(`${variant.sku} inventory saved`);
             await Promise.all([loadProducts(), loadOverview()]);
@@ -227,11 +229,35 @@ async function loadAudit() {
     } catch (error) { setStatus(error.message, true); }
 }
 
+function slugValue(value) {
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function imageUploadTarget(containerId) {
+    if (containerId === "season-image-rows") {
+        const slug = slugValue(seasonForm.elements.slug.value || seasonForm.elements.code.value || seasonForm.elements.title.value);
+        return slug ? { scope: "seasons", ownerSlug: slug } : null;
+    }
+    const slug = slugValue(productForm.elements.slug.value || productForm.elements.title.value);
+    return slug ? { scope: "products", ownerSlug: slug } : null;
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 function addImageRow(values = {}, containerId = "gallery-image-rows", removable = true) {
     const row = document.getElementById("image-row-template").content.firstElementChild.cloneNode(true);
     const url = row.querySelector("[data-image-url]");
     const alt = row.querySelector("[data-image-alt]");
     const preview = row.querySelector(".image-preview");
+    const upload = row.querySelector(".upload-row");
+    const fileInput = row.querySelector("[data-image-file]");
     url.value = values.url || ""; alt.value = values.alt || "";
     const updatePreview = () => {
         const value = url.value.trim();
@@ -239,6 +265,28 @@ function addImageRow(values = {}, containerId = "gallery-image-rows", removable 
         preview.querySelector("span").textContent = value ? "" : "PREVIEW";
     };
     url.addEventListener("input", updatePreview); updatePreview();
+    upload.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        if (!/^image\/(?:png|jpe?g|webp|gif)$/.test(file.type)) { setStatus("Unsupported image type", true); return; }
+        if (file.size > 8_000_000) { setStatus("Image limit is 8 MB", true); return; }
+        const target = imageUploadTarget(containerId);
+        if (!target) { setStatus("Fill slug before upload", true); return; }
+        upload.disabled = true;
+        try {
+            const imageBase64 = await readFileAsDataUrl(file);
+            const result = await YOApi.uploadImage({ ...target, fileName: file.name, imageBase64 });
+            url.value = result.url;
+            if (!alt.value.trim()) alt.value = file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").toUpperCase();
+            updatePreview();
+            setStatus("Image uploaded");
+        } catch (error) { setStatus(error.message, true); }
+        finally {
+            upload.disabled = false;
+            fileInput.value = "";
+        }
+    });
     const remove = row.querySelector(".remove-row");
     remove.hidden = !removable;
     remove.addEventListener("click", () => row.remove());
