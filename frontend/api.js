@@ -122,6 +122,7 @@
 
     window.YOApi = {
         ApiError,
+        apiBase: API_BASE,
         request,
         login: (body) => authenticate("/auth/login", body),
         register: (body) => request("/auth/register", { method: "POST", body }),

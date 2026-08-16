@@ -51,23 +51,44 @@ function inlineDeliveryAddress() {
     };
 }
 
-function selection() {
+function missingContactFields() {
+    const values = Object.fromEntries(new FormData(contactForm).entries());
+    if (!values.firstName || !values.lastName || !values.email || !values.phone) return true;
+    return !contactForm.checkValidity();
+}
+
+function missingDeliveryFields() {
+    const values = Object.fromEntries(new FormData(deliveryAddressForm).entries());
+    return !values.country || !values.city || !values.postalCode || !values.line1 || !deliveryAddressForm.checkValidity();
+}
+
+function shippingSelection() {
     if (selectedMethod === "PICKUP") return { method: "PICKUP", pickupLocationId: selectedPickupLocationId };
     const address = inlineDeliveryAddress();
-    if (address) {
-        return {
-            method: "DELIVERY",
-            address,
-            saveAddress: deliveryAddressForm.elements.saveAddress?.checked === true
-        };
-    }
+    if (address) return { method: "DELIVERY", address };
     return { method: "DELIVERY", addressId: selectedAddressId };
 }
 
+function checkoutSelection() {
+    const chosen = shippingSelection();
+    if (chosen.method === "DELIVERY" && chosen.address) {
+        return { ...chosen, saveAddress: deliveryAddressForm.elements.saveAddress?.checked === true };
+    }
+    return chosen;
+}
+
 async function refreshQuote() {
-    const chosen = selection();
+    const chosen = shippingSelection();
     if ((chosen.method === "DELIVERY" && !chosen.addressId && !chosen.address) || (chosen.method === "PICKUP" && !chosen.pickupLocationId)) {
         placeOrder.disabled = true;
+        quoteLine.textContent = "";
+        if (chosen.method === "PICKUP") {
+            setCheckoutStatus("Choose a pickup location", true);
+        } else if (missingContactFields()) {
+            setCheckoutStatus("Enter valid contact details, including phone", true);
+        } else if (missingDeliveryFields()) {
+            setCheckoutStatus("Enter a valid delivery address", true);
+        }
         return;
     }
     try {
@@ -226,7 +247,7 @@ placeOrder.addEventListener("click", async () => {
             method: "POST",
             auth: true,
             headers: { "Idempotency-Key": activeIdempotencyKey },
-            body: { ...selection(), ...contact }
+            body: { ...checkoutSelection(), ...contact }
         });
         setCheckoutStatus("Order created. Preparing secure payment");
         const payment = await YOApi.request(`/payments/orders/${order.id}/session`, { method: "POST", auth: true });

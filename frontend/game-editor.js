@@ -20,7 +20,8 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 function setStatus(message, error = false) { statusLine.textContent = message.toUpperCase(); statusLine.classList.toggle("error", error); }
 function apiImageUrl(path) {
     if (/^https?:/.test(path)) return path;
-    return ["localhost", "127.0.0.1"].includes(location.hostname) ? `http://${location.hostname}:3000${path}` : path;
+    if (["localhost", "127.0.0.1"].includes(location.hostname)) return `http://${location.hostname}:3000${path}`;
+    return `${YOApi.apiBase.replace(/\/api\/v1$/, "")}${path}`;
 }
 function loadImage(url) {
     return new Promise((resolve, reject) => { const image = new Image(); image.crossOrigin = "anonymous"; image.onload = () => resolve(image); image.onerror = reject; image.src = url; });

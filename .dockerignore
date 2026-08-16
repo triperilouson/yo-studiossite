@@ -1,0 +1,16 @@
+**
+
+!backend/
+!backend/**
+!frontend/
+!frontend/showroom/
+!frontend/showroom/assets/
+!frontend/showroom/assets/**
+
+backend/.env
+backend/.env.*
+backend/.pnpm-store
+backend/coverage
+backend/dist
+backend/node_modules
+backend/test
