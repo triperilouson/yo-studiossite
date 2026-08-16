@@ -24,6 +24,6 @@ export class AdminProductsController {
   }
   @Patch('variants/:id/inventory') @ApiOperation({ summary: 'Update stock and optional price' })
   inventory(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() input: UpdateInventoryDto) {
-    return this.products.updateInventory(actor.userId, id, input);
+    return this.products.updateInventory(actor, id, input);
   }
 }

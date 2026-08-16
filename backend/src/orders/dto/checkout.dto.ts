@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length, Matches, ValidateNested } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUUID, Length, Matches, ValidateNested } from 'class-validator';
 import { ShippingMethod } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { DeliveryAddressDto } from '../../shipping/dto/shipping.dto';
@@ -17,6 +17,9 @@ export class CheckoutDto {
 
   @IsOptional() @ValidateNested() @Type(() => DeliveryAddressDto)
   address?: DeliveryAddressDto;
+
+  @IsOptional() @IsBoolean()
+  saveAddress?: boolean;
 
   @IsOptional() @IsUUID()
   pickupLocationId?: string;

@@ -99,6 +99,30 @@ Generate a separate MFA encryption key with 32 cryptographically random bytes an
 
 Production still requires infrastructure credentials outside this repository: Redis for distributed rate limiting, an S3/R2 bucket for scanned image uploads, an email provider for alerts and verification, and Cloudflare/WAF configuration at the DNS/proxy layer. The API fails closed where provider credentials are absent; these services cannot be activated safely with invented credentials.
 
+## Cloudflare R2 images
+
+The admin media uploader can upload product, season and site images to Cloudflare R2. The game editor also
+uses R2 for new PNG assets when these values are present. If these values are empty, game editor assets keep
+using PostgreSQL image storage, but product/season upload buttons are unavailable.
+
+```env
+R2_ACCESS_KEY_ID=replace_with_cloudflare_r2_access_key_id
+R2_SECRET_ACCESS_KEY=replace_with_cloudflare_r2_secret_access_key
+R2_BUCKET=yo-studios
+R2_PUBLIC_URL=https://images.yo-studios.com
+R2_ENDPOINT=https://1e8b83b831e14828408955f2d2390c3e.r2.cloudflarestorage.com
+R2_OBJECT_PREFIX=
+```
+
+Store the real key values only in `.env`, Docker secrets or the production hosting environment. Do not
+commit them. The access key should be limited to object write/read permissions for the `yo-studios` bucket.
+
+To migrate existing database image URLs from local `/assets/...` files into R2, run:
+
+```bash
+pnpm images:migrate-r2
+```
+
 ## Transactional email
 
 The backend has a mail provider abstraction for account verification, password reset, order creation,

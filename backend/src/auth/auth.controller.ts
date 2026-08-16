@@ -52,10 +52,9 @@ export class AuthController {
   @Post('register')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a customer account' })
-  async register(@Body() input: RegisterDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) reply: CookieReply) {
-    const result = await this.auth.register(input, this.context(req));
-    this.setRefreshCookie(reply, result.refreshToken);
-    return { user: result.user, accessToken: result.accessToken, expiresIn: result.expiresIn };
+  async register(@Body() input: RegisterDto) {
+    const result = await this.auth.register(input);
+    return { user: result.user, verificationRequired: true };
   }
 
   @Public()

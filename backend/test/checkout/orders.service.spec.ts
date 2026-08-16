@@ -7,7 +7,8 @@ describe('OrdersService checkout', () => {
     const tx = {
       order: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
       user: { findUnique: vi.fn().mockResolvedValue({
-        email: 'buyer@example.com', firstName: 'A', lastName: 'B', phone: null, isActive: true,
+        email: 'buyer@example.com', firstName: 'A', lastName: 'B', phone: null,
+        isActive: true, emailVerifiedAt: new Date(),
       }) },
       address: { findFirst: vi.fn().mockResolvedValue({ id: 'address', phone: '+972500000000' }) },
       cart: { findUnique: vi.fn().mockResolvedValue({

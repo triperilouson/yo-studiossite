@@ -46,7 +46,7 @@ export class AuthService {
     private readonly mail: MailService,
   ) {}
 
-  async register(input: RegisterDto, context: ClientContext) {
+  async register(input: RegisterDto) {
     const settings = await this.prisma.storeSettings.findUnique({ where: { id: 1 } });
     if (settings && !settings.registrationEnabled) {
       throw new ServiceUnavailableException('Registration is temporarily unavailable');
@@ -66,7 +66,7 @@ export class AuthService {
       });
       const verificationToken = await this.createOneTimeToken(user.id, AuthTokenType.EMAIL_VERIFICATION, 24 * 60);
       await this.mail.sendEmailVerification(user.email, verificationToken);
-      return { user, ...(await this.issueSession(user, context)) };
+      return { user };
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('An account with this email already exists');
@@ -105,6 +105,11 @@ export class AuthService {
         }
       }
       throw new UnauthorizedException('Invalid credentials');
+    }
+    if (!user.emailVerifiedAt) {
+      const verificationToken = await this.createOneTimeToken(user.id, AuthTokenType.EMAIL_VERIFICATION, 24 * 60);
+      await this.mail.sendEmailVerification(user.email, verificationToken);
+      throw new UnauthorizedException('Email verification required. Check your email.');
     }
     if (user.failedLoginAttempts || user.lockedUntil) {
       await this.prisma.user.update({
@@ -163,7 +168,7 @@ export class AuthService {
       await this.revokeAllSessions(session.userId, 'refresh_token_reuse');
       throw new UnauthorizedException('Refresh token reuse detected');
     }
-    if (session.expiresAt <= new Date() || !session.user.isActive) {
+    if (session.expiresAt <= new Date() || !session.user.isActive || !session.user.emailVerifiedAt) {
       await this.revokeSession(session.id, 'expired_or_inactive');
       throw new UnauthorizedException('Refresh token expired');
     }

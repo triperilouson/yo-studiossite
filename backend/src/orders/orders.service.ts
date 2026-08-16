@@ -1,4 +1,6 @@
-import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ConflictException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException,
+} from '@nestjs/common';
 import { OrderStatus, Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuditService } from '../common/admin-audit.service';
@@ -33,9 +35,10 @@ export class OrdersService {
 
         const user = await tx.user.findUnique({
           where: { id: userId },
-          select: { email: true, firstName: true, lastName: true, phone: true, isActive: true },
+          select: { email: true, firstName: true, lastName: true, phone: true, isActive: true, emailVerifiedAt: true },
         });
         if (!user?.isActive) throw new NotFoundException('Checkout user not found');
+        if (!user.emailVerifiedAt) throw new UnauthorizedException('Email verification is required before checkout');
 
         const cart = await tx.cart.findUnique({
           where: { userId },
@@ -66,6 +69,23 @@ export class OrdersService {
         const currency = cart.items[0]!.variant.currency;
         const shipping = await this.shipping.resolve(tx, userId, selection, subtotalMinor, currency);
         const address = shipping.address;
+        if (shipping.method === 'DELIVERY' && selection.saveAddress && selection.address && address) {
+          await tx.address.create({
+            data: {
+              userId,
+              label: address.label || 'Checkout',
+              fullName: address.fullName,
+              phone: address.phone,
+              country: address.country.toUpperCase(),
+              state: address.state,
+              city: address.city,
+              postalCode: address.postalCode,
+              line1: address.line1,
+              line2: address.line2,
+              isDefault: false,
+            },
+          });
+        }
         const order = await tx.order.create({
           data: {
             userId,

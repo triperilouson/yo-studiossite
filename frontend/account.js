@@ -2,21 +2,38 @@
 
 const accountStatus = document.getElementById("account-status");
 const profileForm = document.getElementById("profile-form");
+const addressForm = document.getElementById("address-form");
 const addressList = document.getElementById("address-list");
 const orderList = document.getElementById("order-list");
+
+let shippingCountries = new Map();
 
 function setStatus(text) {
     accountStatus.textContent = text ? text.toUpperCase() : "";
 }
 
+function countryLabel(code) {
+    const country = shippingCountries.get(code);
+    return country ? `${country.name} / ${country.code}` : code;
+}
+
 function addressCard(address) {
     const card = document.createElement("article");
     card.className = "data-card";
+
     const title = document.createElement("h3");
-    title.textContent = `${address.label}${address.isDefault ? " — DEFAULT" : ""}`;
+    title.textContent = `${address.label}${address.isDefault ? " - DEFAULT" : ""}`;
+
     const lines = document.createElement("p");
-    lines.textContent = [address.fullName, address.line1, address.line2, `${address.city} ${address.postalCode}`, address.country, address.phone]
-        .filter(Boolean).join(" · ");
+    lines.textContent = [
+        address.fullName,
+        address.line1,
+        address.line2,
+        `${address.city} ${address.postalCode}`,
+        countryLabel(address.country),
+        address.phone
+    ].filter(Boolean).join(" / ");
+
     const remove = document.createElement("button");
     remove.className = "text-button";
     remove.type = "button";
@@ -25,10 +42,22 @@ function addressCard(address) {
         try {
             await YOApi.request(`/users/me/addresses/${address.id}`, { method: "DELETE", auth: true });
             await loadAddresses();
-        } catch (error) { setStatus(error.message); }
+        } catch (error) {
+            setStatus(error.message);
+        }
     });
+
     card.append(title, lines, remove);
     return card;
+}
+
+async function loadShippingOptions() {
+    const shipping = await YOApi.request("/shipping/options");
+    shippingCountries = new Map(shipping.countries.map((country) => [country.code, country]));
+
+    const countrySelect = addressForm.elements.country;
+    countrySelect.replaceChildren(...shipping.countries.map((country) => new Option(`${country.name} / ${country.code}`, country.code)));
+    if (shippingCountries.has("IL")) countrySelect.value = "IL";
 }
 
 async function loadAddresses() {
@@ -40,12 +69,16 @@ async function loadAddresses() {
 function orderCard(order) {
     const card = document.createElement("article");
     card.className = "data-card order-card";
+
     const title = document.createElement("h3");
-    title.textContent = `${new Date(order.createdAt).toLocaleDateString()} — ${order.status.replaceAll("_", " ")}`;
+    title.textContent = `${new Date(order.createdAt).toLocaleDateString()} - ${order.status.replaceAll("_", " ")}`;
+
     const total = document.createElement("p");
     total.textContent = YOApi.formatMoney(order.totalMinor, order.currency);
+
     const items = document.createElement("p");
-    items.textContent = order.items.map((item) => `${item.titleSnapshot} / ${item.sizeSnapshot} × ${item.quantity}`).join(" · ");
+    items.textContent = order.items.map((item) => `${item.titleSnapshot} / ${item.sizeSnapshot} x ${item.quantity}`).join(" / ");
+
     card.append(title, total, items);
     return card;
 }
@@ -63,13 +96,21 @@ async function loadAccount() {
             window.location.href = "auth.html?return=account.html";
             return;
         }
+
         profileForm.elements.firstName.value = user.firstName;
         profileForm.elements.lastName.value = user.lastName;
         profileForm.elements.phone.value = user.phone || "";
         profileForm.elements.email.value = user.email;
-        if (["ADMIN", "SUPER_ADMIN"].includes(user.role)) document.getElementById("admin-link").classList.remove("hidden");
+
+        if (["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
+            document.getElementById("admin-link").classList.remove("hidden");
+        }
+
+        await loadShippingOptions();
         await Promise.all([loadAddresses(), loadOrders()]);
-    } catch (error) { setStatus(error.message); }
+    } catch (error) {
+        setStatus(error.message);
+    }
 }
 
 profileForm.addEventListener("submit", async (event) => {
@@ -77,13 +118,16 @@ profileForm.addEventListener("submit", async (event) => {
     const values = Object.fromEntries(new FormData(profileForm).entries());
     const body = { firstName: values.firstName, lastName: values.lastName };
     if (values.phone) body.phone = values.phone;
+
     try {
         await YOApi.request("/users/me", { method: "PATCH", auth: true, body });
         setStatus("Profile saved");
-    } catch (error) { setStatus(error.message); }
+    } catch (error) {
+        setStatus(error.message);
+    }
 });
 
-document.getElementById("address-form").addEventListener("submit", async (event) => {
+addressForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget).entries());
     const body = {
@@ -98,12 +142,16 @@ document.getElementById("address-form").addEventListener("submit", async (event)
     };
     if (values.state) body.state = values.state;
     if (values.line2) body.line2 = values.line2;
+
     try {
         await YOApi.request("/users/me/addresses", { method: "POST", auth: true, body });
         event.currentTarget.reset();
+        if (shippingCountries.has("IL")) addressForm.elements.country.value = "IL";
         setStatus("Address added");
         await loadAddresses();
-    } catch (error) { setStatus(error.message); }
+    } catch (error) {
+        setStatus(error.message);
+    }
 });
 
 document.getElementById("logout-button").addEventListener("click", async () => {

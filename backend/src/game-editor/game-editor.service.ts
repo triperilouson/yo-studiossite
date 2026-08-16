@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { AdminAuditService } from '../common/admin-audit.service';
+import type { Environment } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssetConfigDto, SaveAssetConfigDto, SaveGameLevelDto, UploadGameAssetDto } from './dto/game-editor.dto';
 
@@ -14,7 +17,13 @@ const assetSelect = {
 
 @Injectable()
 export class GameEditorService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AdminAuditService) {}
+  private r2Client?: S3Client;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AdminAuditService,
+    private readonly config: ConfigService<Environment, true>,
+  ) {}
 
   listAssets() {
     return this.prisma.gameAsset.findMany({ select: assetSelect, orderBy: [{ category: 'asc' }, { name: 'asc' }], take: 500 });
@@ -40,7 +49,7 @@ export class GameEditorService {
     const id = randomUUID();
     const slugBase = input.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'asset';
     const slug = `${slugBase}-${id.slice(0, 8)}`;
-    const imagePath = `/api/v1/game-assets/${id}/image`;
+    const imagePath = await this.storeAssetImage(id, data.buffer);
     const config = {
       assetId: id, image: imagePath, width: data.width, height: data.height,
       anchor: { x: Math.round(data.width / 2), y: data.height }, depthBaseline: [],
@@ -58,13 +67,14 @@ export class GameEditorService {
   }
 
   async saveConfig(actorId: string, id: string, input: SaveAssetConfigDto) {
-    const asset = await this.prisma.gameAsset.findUnique({ where: { id }, select: { id: true, width: true, height: true } });
+    const asset = await this.prisma.gameAsset.findUnique({ where: { id }, select: { id: true, width: true, height: true, config: true } });
     if (!asset) throw new NotFoundException('Game asset not found');
     if (input.productId && !(await this.prisma.product.findUnique({ where: { id: input.productId }, select: { id: true } }))) {
       throw new BadRequestException('Linked product does not exist');
     }
+    const existingConfig = asset.config as Partial<AssetConfigDto> | null;
     const config: AssetConfigDto = {
-      ...input.config, assetId: id, image: `/api/v1/game-assets/${id}/image`, width: asset.width, height: asset.height,
+      ...input.config, assetId: id, image: existingConfig?.image || `/api/v1/game-assets/${id}/image`, width: asset.width, height: asset.height,
     };
     const updated = await this.prisma.gameAsset.update({
       where: { id },
@@ -127,5 +137,45 @@ export class GameEditorService {
       throw new BadRequestException('PNG dimensions exceed the safe limit');
     }
     return { buffer, width, height };
+  }
+
+  private async storeAssetImage(id: string, buffer: Buffer) {
+    const r2 = this.r2Config();
+    if (!r2) return `/api/v1/game-assets/${id}/image`;
+
+    const key = `${r2.objectPrefix}game-assets/${id}.png`;
+    await this.r2(r2).send(new PutObjectCommand({
+      Bucket: r2.bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: 'image/png',
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
+    return `${r2.publicUrl}/${key}`;
+  }
+
+  private r2(r2: NonNullable<ReturnType<GameEditorService['r2Config']>>) {
+    if (!this.r2Client) {
+      this.r2Client = new S3Client({
+        region: 'auto',
+        endpoint: r2.endpoint,
+        credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey },
+        forcePathStyle: true,
+      });
+    }
+    return this.r2Client;
+  }
+
+  private r2Config() {
+    const accessKeyId = this.config.get('R2_ACCESS_KEY_ID', { infer: true });
+    const secretAccessKey = this.config.get('R2_SECRET_ACCESS_KEY', { infer: true });
+    const bucket = this.config.get('R2_BUCKET', { infer: true });
+    const publicUrl = this.config.get('R2_PUBLIC_URL', { infer: true });
+    const endpoint = this.config.get('R2_ENDPOINT', { infer: true });
+    if (!accessKeyId || !secretAccessKey || !bucket || !publicUrl || !endpoint) return null;
+
+    const rawPrefix = this.config.get('R2_OBJECT_PREFIX', { infer: true }) || '';
+    const objectPrefix = rawPrefix ? `${rawPrefix.replace(/^\/+|\/+$/g, '')}/` : '';
+    return { accessKeyId, secretAccessKey, bucket, publicUrl: publicUrl.replace(/\/+$/g, ''), endpoint, objectPrefix };
   }
 }

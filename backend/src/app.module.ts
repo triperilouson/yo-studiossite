@@ -21,6 +21,7 @@ import { AdminSecurityModule } from './admin-security/admin-security.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { GameEditorModule } from './game-editor/game-editor.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { GameEditorModule } from './game-editor/game-editor.module';
     AdminSecurityModule,
     SeasonsModule,
     ShippingModule,
+    MediaModule,
     GameEditorModule,
   ],
   providers: [

@@ -1,8 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ProductStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateInventoryDto, UpdateProductDto } from './dto/admin-product.dto';
 import { AdminAuditService } from '../common/admin-audit.service';
+import type { AuthUser } from '../common/types/auth-user';
 
 const productSelect = {
   id: true, slug: true, title: true, description: true, category: true, season: true,
@@ -90,9 +91,12 @@ export class ProductsService {
     return product;
   }
 
-  async updateInventory(actorId: string, variantId: string, input: UpdateInventoryDto) {
+  async updateInventory(actor: AuthUser, variantId: string, input: UpdateInventoryDto) {
     const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } });
     if (!variant) throw new NotFoundException('Variant not found');
+    if (input.priceMinor !== undefined && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('SUPER_ADMIN is required to change product prices');
+    }
     if (input.stock < variant.reservedStock) {
       throw new ConflictException('Stock cannot be lower than currently reserved stock');
     }
@@ -104,9 +108,16 @@ export class ProductsService {
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },
     });
-    await this.audit.record(actorId, 'INVENTORY_UPDATED', 'ProductVariant', variantId, {
-      stock: updated.stock, priceMinor: updated.priceMinor, isActive: updated.isActive,
+    await this.audit.record(actor.userId, 'INVENTORY_UPDATED', 'ProductVariant', variantId, {
+      stock: updated.stock, isActive: updated.isActive,
     });
+    if (input.priceMinor !== undefined && input.priceMinor !== variant.priceMinor) {
+      await this.audit.record(actor.userId, 'PRODUCT_PRICE_UPDATED', 'ProductVariant', variantId, {
+        oldPriceMinor: variant.priceMinor,
+        newPriceMinor: updated.priceMinor,
+        currency: updated.currency,
+      });
+    }
     return updated;
   }
 

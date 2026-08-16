@@ -31,13 +31,29 @@ const envSchema = z.object({
   GROW_API_URL: z.string().url().optional().or(z.literal('')),
   GROW_API_KEY: z.string().min(20).optional().or(z.literal('')),
   GROW_WEBHOOK_SECRET: z.string().min(32).optional().or(z.literal('')),
+  R2_ACCESS_KEY_ID: z.string().min(1).optional().or(z.literal('')),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).optional().or(z.literal('')),
+  R2_BUCKET: z.string().min(1).optional().or(z.literal('')),
+  R2_PUBLIC_URL: z.string().url().optional().or(z.literal('')),
+  R2_ENDPOINT: z.string().url().optional().or(z.literal('')),
+  R2_OBJECT_PREFIX: z.string().optional().or(z.literal('')),
 }).superRefine((value, context) => {
-  if (value.MAIL_PROVIDER !== 'ses') return;
-  if (!value.SES_REGION) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_REGION'], message: 'SES_REGION is required when MAIL_PROVIDER=ses' });
+  if (value.MAIL_PROVIDER === 'ses') {
+    if (!value.SES_REGION) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_REGION'], message: 'SES_REGION is required when MAIL_PROVIDER=ses' });
+    }
+    if (!value.SES_FROM_EMAIL) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+    }
   }
-  if (!value.SES_FROM_EMAIL) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+
+  const r2Fields = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_URL', 'R2_ENDPOINT'] as const;
+  if (r2Fields.some((field) => Boolean(value[field]))) {
+    for (const field of r2Fields) {
+      if (!value[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when R2 storage is configured` });
+      }
+    }
   }
 });
 
