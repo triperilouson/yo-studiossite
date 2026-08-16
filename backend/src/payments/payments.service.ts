@@ -8,6 +8,7 @@ import {
   PAYMENT_PROVIDER, type PaymentProvider, type VerifiedPaymentWebhook,
 } from './contracts/payment-provider';
 import { MailService, type OrderMailSnapshot } from '../mail/mail.service';
+import { AccountingService } from '../accounting/accounting.service';
 
 @Injectable()
 export class PaymentsService {
@@ -15,6 +16,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly mail: MailService,
+    private readonly accounting: AccountingService,
   ) {}
 
   async createSession(userId: string, orderId: string) {
@@ -184,6 +186,7 @@ export class PaymentsService {
         data: { ...commonUpdate, status: PaymentStatus.SUCCEEDED, paidAt: new Date(), failedAt: null },
       });
       await tx.order.update({ where: { id: payment.orderId }, data: { status: OrderStatus.PAID } });
+      await this.accounting.createForPayment(tx, payment.id);
       return { ...payment.order, status: OrderStatus.PAID };
     }
 

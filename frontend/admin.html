@@ -20,8 +20,9 @@
                 <button class="nav-item" data-view="orders" type="button">ORDERS <span>05</span></button>
                 <button class="nav-item" data-view="users" type="button">USERS <span>06</span></button>
                 <button class="nav-item" data-view="security" type="button">SECURITY <span>07</span></button>
-                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>08</span></button>
-                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>09</span></a>
+                <button class="nav-item" data-view="accounting" type="button">ACCOUNTING <span>08</span></button>
+                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>09</span></button>
+                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>10</span></a>
             </nav>
             <div class="admin-presence"><i></i><span>SECURE SESSION</span></div>
         </aside>
@@ -112,6 +113,23 @@
                 <div class="view-toolbar"><div><h2>ADMIN AUDIT TRAIL</h2><p>Recent privileged actions stored in PostgreSQL.</p></div></div>
                 <div id="admin-audit" class="admin-table"></div>
             </section>
+
+            <section class="admin-view" data-view-panel="accounting">
+                <div class="view-toolbar"><div><h2>ACCOUNTING</h2><p>Sequential receipts for website and manual payments.</p></div><button id="open-receipt-modal" class="primary-action" type="button">+ CREATE RECEIPT</button></div>
+                <div class="metric-grid">
+                    <article class="metric featured"><span>TOTAL RECEIVED</span><strong id="accounting-total">—</strong><small>ISSUED RECEIPTS</small></article>
+                    <article class="metric"><span>NET RECEIVED</span><strong id="accounting-net">—</strong></article>
+                    <article class="metric"><span>RECEIPTS</span><strong id="accounting-count">—</strong></article>
+                    <article class="metric"><span>CANCELLED</span><strong id="accounting-cancelled">—</strong></article>
+                </div>
+                <div class="filter-row">
+                    <input id="receipt-search" type="search" placeholder="SEARCH NUMBER, EMAIL, ORDER ID">
+                    <input id="receipt-from" type="date">
+                    <input id="receipt-to" type="date">
+                    <button id="receipt-export-csv" class="secondary-action" type="button">EXPORT CSV</button>
+                </div>
+                <div id="admin-receipts" class="admin-table accounting-table"></div>
+            </section>
         </main>
     </div>
 
@@ -144,6 +162,26 @@
             </div></div>
             <div class="form-section"><div class="section-heading"><h3>02 / SEASON IMAGES</h3><button id="add-season-image" class="secondary-action" type="button">+ ADD IMAGE</button></div><p class="field-note">These images belong to the season page, not to products. Maximum 20.</p><div id="season-image-rows" class="dynamic-rows"></div></div>
             <footer><p>Draft seasons are invisible. Archived seasons appear only in the archive.</p><button id="save-season" class="primary-action" type="submit">SAVE SEASON</button></footer>
+        </form>
+    </dialog>
+
+    <dialog id="receipt-dialog" class="product-dialog">
+        <form id="receipt-form" method="dialog">
+            <header><div><small>ACCOUNTING</small><h2>CREATE RECEIPT</h2></div><button id="close-receipt-modal" class="icon-button" type="button" aria-label="Close">×</button></header>
+            <div class="form-section"><div class="form-grid">
+                <label>CUSTOMER NAME<input name="customerName" required maxlength="160"></label>
+                <label>EMAIL<input name="customerEmail" type="email" maxlength="254"></label>
+                <label class="full-field">PAYER ADDRESS<input name="payerAddress" maxlength="300"></label>
+                <label>AMOUNT ILS<input name="amount" type="number" min="0.01" step="0.01" required></label>
+                <label>CURRENCY<input name="currency" required maxlength="3" value="ILS"></label>
+                <label>PAYMENT METHOD<select name="paymentMethod"><option>BANK_TRANSFER</option><option>BIT</option><option>CASH</option><option>CARD</option><option>OTHER</option></select></label>
+                <label>PAYMENT REFERENCE<input name="paymentReference" maxlength="200"></label>
+                <label>PAYMENT DATE<input name="issuedAt" type="datetime-local"></label>
+                <label>E-DOC CONSENT DATE<input name="electronicDocsConsentAt" type="datetime-local"></label>
+                <label>E-DOC CONSENT SOURCE<input name="electronicDocsConsentSource" maxlength="120" placeholder="manual / whatsapp / email"></label>
+                <label class="full-field">DESCRIPTION<textarea name="description" required maxlength="500"></textarea></label>
+            </div></div>
+            <footer><p>Issued receipts are numbered sequentially and cannot be silently edited later.</p><button class="primary-action" type="submit">CREATE RECEIPT</button></footer>
         </form>
     </dialog>
 

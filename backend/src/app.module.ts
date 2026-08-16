@@ -22,6 +22,7 @@ import { SeasonsModule } from './seasons/seasons.module';
 import { ShippingModule } from './shipping/shipping.module';
 import { GameEditorModule } from './game-editor/game-editor.module';
 import { MediaModule } from './media/media.module';
+import { AccountingModule } from './accounting/accounting.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { MediaModule } from './media/media.module';
     ShippingModule,
     MediaModule,
     GameEditorModule,
+    AccountingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

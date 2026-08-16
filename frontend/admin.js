@@ -1,6 +1,6 @@
 "use strict";
 
-const state = { admin: null, products: [], seasons: [], shipping: null, overview: null };
+const state = { admin: null, products: [], seasons: [], shipping: null, overview: null, receipts: [], accounting: null };
 const statusLine = document.getElementById("admin-status");
 const dialog = document.getElementById("product-dialog");
 const productForm = document.getElementById("product-form");
@@ -37,6 +37,7 @@ function switchView(name) {
     if (name === "users") void loadUsers();
     if (name === "audit") void loadAudit();
     if (name === "security") void loadOverview();
+    if (name === "accounting") void loadAccounting();
 }
 
 document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
@@ -226,6 +227,67 @@ async function loadAudit() {
             node("span", "", `${event.entityType}${event.entityId ? ` · ${event.entityId.slice(0, 12)}` : ""}`),
             node("small", "", new Date(event.createdAt).toLocaleString())
         ])));
+    } catch (error) { setStatus(error.message, true); }
+}
+
+function receiptQuery() {
+    const params = new URLSearchParams();
+    const q = document.getElementById("receipt-search")?.value.trim();
+    const from = document.getElementById("receipt-from")?.value;
+    const to = document.getElementById("receipt-to")?.value;
+    if (q) params.set("q", q);
+    if (from) params.set("from", new Date(`${from}T00:00:00`).toISOString());
+    if (to) params.set("to", new Date(`${to}T23:59:59`).toISOString());
+    const value = params.toString();
+    return value ? `?${value}` : "";
+}
+
+function receiptRow(receipt) {
+    const actions = node("div", "row-actions");
+    actions.append(
+        button("PDF", () => YOApi.download(`/admin/accounting/receipts/${receipt.id}/pdf`, `yo-receipt-${receipt.documentNumber}.pdf`).catch((error) => setStatus(error.message, true))),
+        button("SEND", async () => {
+            try {
+                const email = window.prompt("Send receipt to email", receipt.customerEmail || "");
+                if (email === null) return;
+                await YOApi.request(`/admin/accounting/receipts/${receipt.id}/send`, { method: "POST", auth: true, body: { email: email || undefined } });
+                setStatus("Receipt email sent");
+            } catch (error) { setStatus(error.message, true); }
+        })
+    );
+    if (receipt.status !== "CANCELLED") actions.append(button("CANCEL", async () => {
+        try {
+            const reason = window.prompt("Cancellation reason");
+            if (!reason) return;
+            await YOApi.request(`/admin/accounting/receipts/${receipt.id}/cancel`, { method: "PATCH", auth: true, body: { reason } });
+            setStatus("Receipt cancelled");
+            await loadAccounting();
+        } catch (error) { setStatus(error.message, true); }
+    }, "danger"));
+    return tableRow([
+        node("strong", "", `#${receipt.documentNumber}`),
+        node("span", "", new Date(receipt.issuedAt).toLocaleDateString()),
+        node("span", "", `${receipt.customerName} · ${receipt.customerEmail || "NO EMAIL"}`),
+        node("span", "", `${YOApi.formatMoney(receipt.amountMinor, receipt.currency)} · ${receipt.source} · ${receipt.status}`),
+        actions,
+    ]);
+}
+
+async function loadAccounting() {
+    try {
+        const query = receiptQuery();
+        const [summary, receipts] = await Promise.all([
+            YOApi.request(`/admin/accounting/summary${query}`, { auth: true }),
+            YOApi.request(`/admin/accounting/receipts${query}`, { auth: true }),
+        ]);
+        state.accounting = summary; state.receipts = receipts;
+        document.getElementById("accounting-total").textContent = YOApi.formatMoney(summary.totalReceived, "ILS");
+        document.getElementById("accounting-net").textContent = YOApi.formatMoney(summary.netReceived, "ILS");
+        document.getElementById("accounting-count").textContent = String(summary.receipts);
+        document.getElementById("accounting-cancelled").textContent = String(summary.cancelledReceipts);
+        const table = document.getElementById("admin-receipts");
+        table.replaceChildren(...receipts.map(receiptRow));
+        if (!receipts.length) table.append(node("p", "admin-status", "NO RECEIPTS"));
     } catch (error) { setStatus(error.message, true); }
 }
 
@@ -523,6 +585,45 @@ document.getElementById("pickup-form").addEventListener("submit", async (event) 
             body: { slug: values.slug, name: values.name, country: values.country.toUpperCase(), city: values.city, address: values.address }
         });
         form.reset(); setStatus("Pickup location added"); await loadShipping();
+    } catch (error) { setStatus(error.message, true); }
+});
+
+const receiptDialog = document.getElementById("receipt-dialog");
+const receiptForm = document.getElementById("receipt-form");
+document.getElementById("open-receipt-modal").addEventListener("click", () => {
+    receiptForm.reset();
+    receiptForm.elements.currency.value = "ILS";
+    receiptDialog.showModal();
+});
+document.getElementById("close-receipt-modal").addEventListener("click", () => receiptDialog.close());
+["receipt-search", "receipt-from", "receipt-to"].forEach((id) => document.getElementById(id).addEventListener("input", () => loadAccounting()));
+document.getElementById("receipt-export-csv").addEventListener("click", () => {
+    YOApi.download(`/admin/accounting/reports.csv${receiptQuery()}`, "yo-receipts.csv").catch((error) => setStatus(error.message, true));
+});
+receiptForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(receiptForm).entries());
+    try {
+        await YOApi.request("/admin/accounting/receipts", {
+            method: "POST",
+            auth: true,
+            body: {
+                customerName: values.customerName,
+                customerEmail: values.customerEmail || undefined,
+                payerAddress: values.payerAddress || undefined,
+                amountMinor: Math.round(Number(values.amount) * 100),
+                currency: values.currency.toUpperCase(),
+                description: values.description,
+                paymentMethod: values.paymentMethod,
+                paymentReference: values.paymentReference || undefined,
+                issuedAt: values.issuedAt ? new Date(values.issuedAt).toISOString() : undefined,
+                electronicDocsConsentAt: values.electronicDocsConsentAt ? new Date(values.electronicDocsConsentAt).toISOString() : undefined,
+                electronicDocsConsentSource: values.electronicDocsConsentSource || undefined,
+            },
+        });
+        receiptDialog.close();
+        setStatus("Receipt created");
+        await loadAccounting();
     } catch (error) { setStatus(error.message, true); }
 });
 

@@ -1,7 +1,7 @@
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, type Receipt } from '@prisma/client';
 import type { Environment } from '../config/env';
 
 type OrderMailItem = {
@@ -96,6 +96,35 @@ export class MailService {
     );
   }
 
+  async sendReceiptPdf(to: string, receipt: Receipt, pdf: Buffer): Promise<void> {
+    const subject = `YO STUDIOS receipt ${receipt.documentNumber}`;
+    const text = [
+      'YO STUDIOS receipt',
+      '',
+      `Document number: ${receipt.documentNumber}`,
+      `Amount: ${this.money(receipt.amountMinor, receipt.currency)}`,
+      `Issued at: ${receipt.issuedAt.toISOString()}`,
+      '',
+      'The PDF receipt is attached.',
+    ].join('\n');
+    const html = this.layout('Receipt issued', `
+      <p>Your YO STUDIOS receipt is attached as a PDF.</p>
+      <p class="muted">Document ${receipt.documentNumber}</p>
+      <p><strong>${this.escape(this.money(receipt.amountMinor, receipt.currency))}</strong></p>
+    `);
+    await this.sendRaw({
+      to,
+      subject,
+      text,
+      html,
+      attachments: [{
+        filename: `yo-receipt-${receipt.documentNumber}.pdf`,
+        contentType: 'application/pdf',
+        content: pdf,
+      }],
+    });
+  }
+
   sendOrderStatus(order: OrderMailSnapshot): Promise<void> {
     const messages: Partial<Record<OrderStatus, [string, string]>> = {
       [OrderStatus.SHIPPED]: ['Order shipped', 'Your YO STUDIOS order has been shipped.'],
@@ -180,6 +209,65 @@ export class MailService {
     }
   }
 
+  private async sendRaw(message: MailMessage & { attachments: Array<{ filename: string; contentType: string; content: Buffer }> }): Promise<void> {
+    try {
+      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'console') {
+        this.logger.log(`[console-mail] ${message.subject} -> ${message.to}\n${message.text}\n[attachments] ${message.attachments.map((item) => item.filename).join(', ')}`);
+        return;
+      }
+      const from = this.config.get('SES_FROM_EMAIL', { infer: true });
+      const fromName = this.config.get('SES_FROM_NAME', { infer: true });
+      const replyTo = this.config.get('SES_REPLY_TO', { infer: true });
+      const configurationSetName = this.config.get('SES_CONFIGURATION_SET', { infer: true });
+      const boundary = `yo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      const related = [
+        `From: ${this.mimeHeader(fromName)} <${from}>`,
+        `To: ${message.to}`,
+        `Subject: ${this.mimeHeader(message.subject)}`,
+        'MIME-Version: 1.0',
+        replyTo ? `Reply-To: ${replyTo}` : '',
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        message.text,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        message.html,
+        '',
+        ...message.attachments.flatMap((attachment) => [
+          `--${boundary}`,
+          `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${attachment.filename}"`,
+          '',
+          attachment.content.toString('base64').replace(/.{1,76}/g, '$&\r\n'),
+          '',
+        ]),
+        `--${boundary}--`,
+        '',
+      ].filter(Boolean).join('\r\n');
+      const client = this.getSesClient();
+      await client.send(new SendEmailCommand({
+        FromEmailAddress: `${fromName} <${from}>`,
+        Destination: { ToAddresses: [message.to] },
+        ReplyToAddresses: replyTo ? [replyTo] : undefined,
+        ConfigurationSetName: configurationSetName || undefined,
+        Content: { Raw: { Data: Buffer.from(related, 'utf8') } },
+      }));
+    } catch (error: unknown) {
+      const strict = this.config.get('MAIL_STRICT_DELIVERY', { infer: true }) === 'true';
+      const messageText = error instanceof Error ? error.message : 'Unknown mail delivery error';
+      this.logger.error(`Mail delivery failed: ${messageText}`);
+      if (strict) throw error;
+    }
+  }
+
   private getSesClient(): SESv2Client {
     if (!this.ses) {
       this.ses = new SESv2Client({ region: this.config.get('SES_REGION', { infer: true }) });
@@ -217,5 +305,9 @@ export class MailService {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
+  }
+
+  private mimeHeader(value: string): string {
+    return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
   }
 }

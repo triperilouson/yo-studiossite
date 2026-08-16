@@ -51,6 +51,25 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum ReceiptStatus {
+  ISSUED
+  CANCELLED
+}
+
+enum ReceiptSource {
+  WEBSITE
+  MANUAL
+}
+
+enum ReceiptPaymentMethod {
+  WEBSITE
+  CARD
+  BANK_TRANSFER
+  BIT
+  CASH
+  OTHER
+}
+
 enum AuthTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -270,6 +289,7 @@ model Order {
   idempotencyKey         String
   items                  OrderItem[]
   payments               Payment[]
+  receipts               Receipt[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -346,6 +366,7 @@ model Payment {
   metadata          Json?
   order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
   orderId           String        @db.Uuid
+  receipt           Receipt?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -365,6 +386,70 @@ model WebhookEvent {
   updatedAt       DateTime  @updatedAt
 
   @@unique([provider, providerEventId])
+}
+
+model ReceiptSequence {
+  key        String   @id
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
+}
+
+model Receipt {
+  id                String               @id @default(uuid()) @db.Uuid
+  documentNumber    Int                  @unique
+  status            ReceiptStatus        @default(ISSUED)
+  issuedAt          DateTime
+  customerName      String
+  customerEmail     String?
+  payerAddress      String?
+  businessName      String
+  businessTaxId     String
+  businessAddress   String
+  amountMinor       Int
+  currency          String
+  description       String
+  paymentMethod     ReceiptPaymentMethod
+  paymentReference  String?
+  source            ReceiptSource
+  electronicDocumentLabel String?
+  electronicDocsConsentAt DateTime?
+  electronicDocsConsentSource String?
+  order             Order?               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId           String?              @db.Uuid
+  payment           Payment?             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  paymentId         String?              @unique @db.Uuid
+  documentHash      String
+  pdfHash           String?
+  signedPdfHash     String?
+  signedPdfStorageKey String?
+  signedPdfByteSize Int?
+  signatureMetadata Json?
+  createdById       String?              @db.Uuid
+  cancelledAt       DateTime?
+  cancellationReason String?
+  events            ReceiptEvent[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([issuedAt])
+  @@index([customerEmail])
+  @@index([orderId])
+  @@index([source, issuedAt])
+  @@index([status, issuedAt])
+}
+
+model ReceiptEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  receipt   Receipt  @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  receiptId String   @db.Uuid
+  actorId   String?  @db.Uuid
+  actorType String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([receiptId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 model StoreSettings {

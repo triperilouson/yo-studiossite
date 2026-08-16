@@ -19,6 +19,9 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ENABLE_SWAGGER: z.enum(['true', 'false']).default('false'),
   FRONTEND_URL: z.string().url().default('http://127.0.0.1:5500/frontend'),
+  BUSINESS_NAME: z.string().min(1).max(160).default('YO STUDIOS'),
+  BUSINESS_TAX_ID: z.string().optional().or(z.literal('')),
+  BUSINESS_ADDRESS: z.string().optional().or(z.literal('')),
   MAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
   MAIL_STRICT_DELIVERY: z.enum(['true', 'false']).default('false'),
   SES_REGION: z.string().optional().or(z.literal('')),
@@ -44,6 +47,14 @@ const envSchema = z.object({
     }
     if (!value.SES_FROM_EMAIL) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+    }
+  }
+  if (value.NODE_ENV === 'production') {
+    if (!value.BUSINESS_TAX_ID) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['BUSINESS_TAX_ID'], message: 'BUSINESS_TAX_ID is required in production for receipts' });
+    }
+    if (!value.BUSINESS_ADDRESS) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['BUSINESS_ADDRESS'], message: 'BUSINESS_ADDRESS is required in production for receipts' });
     }
   }
 

@@ -94,6 +94,31 @@
         }
     }
 
+    async function download(path, filename) {
+        if (!accessToken && !(await refreshSession())) {
+            throw new ApiError(401, "Please sign in to continue");
+        }
+        const response = await fetch(`${API_BASE}${path}`, {
+            credentials: "include",
+            headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) }
+        });
+        if (response.status === 401 && await refreshSession()) return download(path, filename);
+        if (!response.ok) {
+            const payload = await parseResponse(response);
+            throw new ApiError(response.status, errorMessage(payload, `Request failed (${response.status})`), payload);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    }
+
+
     async function logout() {
         try { await request("/auth/logout", { method: "POST" }); } finally {
             accessToken = null;
@@ -124,6 +149,7 @@
         ApiError,
         apiBase: API_BASE,
         request,
+        download,
         login: (body) => authenticate("/auth/login", body),
         register: (body) => request("/auth/register", { method: "POST", body }),
         verifyEmail: (token) => request("/auth/email/verify", { method: "POST", body: { token } }),

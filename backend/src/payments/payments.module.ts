@@ -4,9 +4,10 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { UnconfiguredPaymentProvider } from './unconfigured-payment.provider';
 import { MailModule } from '../mail/mail.module';
+import { AccountingModule } from '../accounting/accounting.module';
 
 @Module({
-  imports: [MailModule],
+  imports: [MailModule, AccountingModule],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,
