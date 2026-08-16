@@ -86,12 +86,22 @@ export class LevelObjectDto {
   @IsOptional() @ValidateNested() @Type(() => RectDto) collision?: RectDto;
 }
 
+export class LevelLayerDto {
+  @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(40) id!: string;
+  @IsString() @MinLength(1) @MaxLength(60) name!: string;
+  @IsNumber() @Min(-1000) @Max(1000) order!: number;
+  @IsBoolean() visible!: boolean;
+  @IsBoolean() locked!: boolean;
+}
+
 export class SaveGameLevelDto {
   @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(80) slug!: string;
   @IsString() @MinLength(2) @MaxLength(100) name!: string;
   @IsInt() @Min(320) @Max(8192) width!: number;
   @IsInt() @Min(180) @Max(8192) height!: number;
   @IsBoolean() isActive!: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(32) @ValidateNested({ each: true }) @Type(() => LevelLayerDto)
+  layers?: LevelLayerDto[];
   @IsArray() @ArrayMaxSize(1000) @ValidateNested({ each: true }) @Type(() => LevelObjectDto)
   objects!: LevelObjectDto[];
 }

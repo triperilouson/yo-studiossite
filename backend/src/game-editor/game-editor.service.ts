@@ -139,7 +139,12 @@ export class GameEditorService {
     if (found !== assetIds.length) throw new BadRequestException('Level references an unknown game asset');
     const existing = await this.prisma.gameLevel.findUnique({ where: { slug: input.slug }, select: { config: true } });
     const existingConfig = existing?.config && typeof existing.config === 'object' && !Array.isArray(existing.config) ? existing.config : {};
-    const config = { ...existingConfig, version: 1, objects: input.objects } as unknown as Prisma.InputJsonValue;
+    const config = {
+      ...existingConfig,
+      version: 1,
+      ...(input.layers ? { layers: input.layers } : {}),
+      objects: input.objects,
+    } as unknown as Prisma.InputJsonValue;
     const level = await this.prisma.$transaction(async (tx) => {
       if (input.isActive) await tx.gameLevel.updateMany({ where: { isActive: true, slug: { not: input.slug } }, data: { isActive: false } });
       return tx.gameLevel.upsert({

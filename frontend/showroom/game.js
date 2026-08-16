@@ -13,6 +13,7 @@ let room = { ...ROOM };
 let staticObjects = OBJECTS;
 let staticInteractions = STATIC_INTERACTIONS;
 let lights = LIGHTS;
+let runtimeLayers = [];
 let runtimeProducts = PRODUCT_STATIONS.map((station) => ({ ...station, product: null, picked: false, source: "legacy" }));
 let editorObjects = [];
 let runtimeAssets = new Map();
@@ -93,6 +94,10 @@ function productFromAsset(asset) {
             available: Math.max(0, (variant.stock || 0) - (variant.reservedStock || 0)),
         })),
     };
+}
+
+function layerFor(id) {
+    return runtimeLayers.find((layer) => layer.id === id) || { order: 0, visible: true };
 }
 
 async function loadAssets() {
@@ -220,11 +225,11 @@ function draw(time) {
     drawBackdrop(time);
     const renderQueue = [
         ...staticObjects.map((object) => ({ sortY: object.sortY, draw: () => drawObject(object) })),
-        ...editorObjects.filter((object) => !editorObjectPicked(object)).map((object) => ({ sortY: object.y + (object.depthOffset || 0), draw: () => drawEditorObject(object) })),
+        ...editorObjects.filter((object) => !editorObjectPicked(object) && layerFor(object.layer).visible !== false).map((object) => ({ sortLayer: layerFor(object.layer).order, sortY: object.y + (object.depthOffset || 0), draw: () => drawEditorObject(object) })),
         ...runtimeProducts.filter((station) => !station.picked && station.source !== "editor").map((station) => ({ sortY: station.sortY, draw: () => drawProduct(station) })),
         { sortY: player.y, draw: () => drawPlayer(time) },
         { sortY: cart.y, draw: drawCart },
-    ].sort((a, b) => a.sortY - b.sortY);
+    ].sort((a, b) => (a.sortLayer || 0) - (b.sortLayer || 0) || a.sortY - b.sortY);
     renderQueue.forEach((entity) => entity.draw());
     drawLighting(time);
     ctx.restore();
@@ -237,6 +242,7 @@ function collisionAt(x, y, radiusX = 10, radiusY = 7, ignoreParkedCart = false) 
     if (!ignoreParkedCart && !cart.attached && x + radiusX > cart.x - 35 && x - radiusX < cart.x + 35 && y + radiusY > cart.y - 18 && y - radiusY < cart.y + 18) return true;
     if (staticObjects.some((object) => object.collision && x + radiusX > object.collision[0] && x - radiusX < object.collision[0] + object.collision[2] && y + radiusY > object.collision[1] && y - radiusY < object.collision[1] + object.collision[3])) return true;
     return editorObjects.some((object) => {
+        if (layerFor(object.layer).visible === false) return false;
         if (object.collision && x + radiusX > object.collision.x && x - radiusX < object.collision.x + object.collision.width && y + radiusY > object.collision.y && y - radiusY < object.collision.y + object.collision.height) return true;
         const asset = runtimeAssets.get(object.assetId);
         const masks = asset?.config?.collisionMasks || [];
@@ -402,6 +408,7 @@ async function loadRuntimeLevel() {
         staticObjects = [];
         staticInteractions = config.interactions || STATIC_INTERACTIONS;
         lights = config.lights || LIGHTS;
+        runtimeLayers = config.layers || [];
         usingRuntimeLevel = true;
         editorObjects = objects.map((object) => ({ ...object }));
 

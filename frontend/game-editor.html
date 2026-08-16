@@ -84,11 +84,15 @@
                 <label>X<input data-object="x" type="number"></label><label>Y<input data-object="y" type="number"></label>
                 <label>Z<input data-object="z" type="number"></label><label>ROTATION<input data-object="rotation" type="number"></label>
                 <label>SCALE X<input data-object="scaleX" type="number" step="0.05"></label><label>SCALE Y<input data-object="scaleY" type="number" step="0.05"></label>
-                <label>DEPTH OFFSET<input data-object="depthOffset" type="number"></label><label>LAYER<input data-object="layer"></label>
+                <label>DEPTH OFFSET<input data-object="depthOffset" type="number"></label><label>LAYER<select data-object="layer" id="object-layer"></select></label>
                 <label class="check"><input data-object="flipX" type="checkbox"> FLIP X</label><label class="check"><input data-object="flipY" type="checkbox"> FLIP Y</label>
                 <label class="check"><input data-object="locked" type="checkbox"> LOCKED</label>
                 <button id="reset-object" type="button">RESET TRANSFORM</button>
             </div>
+            <hr><small>LAYERS</small>
+            <div id="level-layers" class="level-layers"></div>
+            <button id="add-layer" type="button">ADD LAYER</button>
+            <button id="reset-layers" type="button">RESET LAYERS</button>
             <textarea id="level-json" placeholder="LEVEL JSON IMPORT / EXPORT"></textarea>
         </section>
     </aside>

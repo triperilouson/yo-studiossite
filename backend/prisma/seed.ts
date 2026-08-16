@@ -49,6 +49,15 @@ function defaultShowroomConfig(assetBySlug: Map<string, string>) {
 
   return {
     version: 1,
+    layers: [
+      { id: 'background', name: 'BACKGROUND', order: -300, visible: true, locked: false },
+      { id: 'floor', name: 'FLOOR', order: -200, visible: true, locked: false },
+      { id: 'walls', name: 'WALLS', order: -100, visible: true, locked: false },
+      { id: 'furniture', name: 'FURNITURE', order: 0, visible: true, locked: false },
+      { id: 'clothing', name: 'PRODUCTS', order: 80, visible: true, locked: false },
+      { id: 'characters', name: 'CHARACTERS', order: 120, visible: true, locked: false },
+      { id: 'foreground', name: 'FOREGROUND', order: 300, visible: true, locked: false },
+    ],
     room: { left: 64, top: 154, right: 1216, bottom: 718 },
     playerSpawn: { x: 620, y: 650 },
     cartSpawn: { x: 342, y: 634 },
