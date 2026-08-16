@@ -4,6 +4,8 @@ CREATE TYPE "ReceiptSource" AS ENUM ('WEBSITE', 'MANUAL');
 
 CREATE TYPE "ReceiptPaymentMethod" AS ENUM ('WEBSITE', 'CARD', 'BANK_TRANSFER', 'BIT', 'CASH', 'OTHER');
 
+CREATE TYPE "ReceiptRefundStatus" AS ENUM ('PENDING', 'SUCCEEDED', 'FAILED');
+
 CREATE TABLE "ReceiptSequence" (
     "key" TEXT NOT NULL,
     "nextNumber" INTEGER NOT NULL DEFAULT 1,
@@ -70,8 +72,28 @@ CREATE TABLE "ReceiptEvent" (
     CONSTRAINT "ReceiptEvent_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TABLE "ReceiptRefund" (
+    "id" UUID NOT NULL,
+    "documentNumber" INTEGER NOT NULL,
+    "originalReceiptId" UUID NOT NULL,
+    "status" "ReceiptRefundStatus" NOT NULL DEFAULT 'SUCCEEDED',
+    "amountMinor" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "paymentRefundId" TEXT,
+    "documentHash" TEXT NOT NULL,
+    "createdById" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ReceiptRefund_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ReceiptRefund_amount_check" CHECK ("amountMinor" > 0)
+);
+
 CREATE UNIQUE INDEX "Receipt_documentNumber_key" ON "Receipt"("documentNumber");
 CREATE UNIQUE INDEX "Receipt_paymentId_key" ON "Receipt"("paymentId");
+CREATE UNIQUE INDEX "ReceiptRefund_documentNumber_key" ON "ReceiptRefund"("documentNumber");
+CREATE UNIQUE INDEX "ReceiptRefund_paymentRefundId_key" ON "ReceiptRefund"("paymentRefundId") WHERE "paymentRefundId" IS NOT NULL;
 CREATE INDEX "Receipt_issuedAt_idx" ON "Receipt"("issuedAt");
 CREATE INDEX "Receipt_customerEmail_idx" ON "Receipt"("customerEmail");
 CREATE INDEX "Receipt_orderId_idx" ON "Receipt"("orderId");
@@ -79,10 +101,14 @@ CREATE INDEX "Receipt_source_issuedAt_idx" ON "Receipt"("source", "issuedAt");
 CREATE INDEX "Receipt_status_issuedAt_idx" ON "Receipt"("status", "issuedAt");
 CREATE INDEX "ReceiptEvent_receiptId_createdAt_idx" ON "ReceiptEvent"("receiptId", "createdAt");
 CREATE INDEX "ReceiptEvent_actorId_createdAt_idx" ON "ReceiptEvent"("actorId", "createdAt");
+CREATE INDEX "ReceiptRefund_originalReceiptId_idx" ON "ReceiptRefund"("originalReceiptId");
+CREATE INDEX "ReceiptRefund_status_createdAt_idx" ON "ReceiptRefund"("status", "createdAt");
+CREATE INDEX "ReceiptRefund_createdAt_idx" ON "ReceiptRefund"("createdAt");
 
 ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ReceiptEvent" ADD CONSTRAINT "ReceiptEvent_receiptId_fkey" FOREIGN KEY ("receiptId") REFERENCES "Receipt"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ReceiptRefund" ADD CONSTRAINT "ReceiptRefund_originalReceiptId_fkey" FOREIGN KEY ("originalReceiptId") REFERENCES "Receipt"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 INSERT INTO "ReceiptSequence" ("key", "nextNumber", "updatedAt") VALUES ('receipt', 1, CURRENT_TIMESTAMP);
 
@@ -131,3 +157,34 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "Receipt_immutable_update"
 BEFORE UPDATE ON "Receipt"
 FOR EACH ROW EXECUTE FUNCTION prevent_receipt_immutable_update();
+
+CREATE TRIGGER "ReceiptRefund_no_delete"
+BEFORE DELETE ON "ReceiptRefund"
+FOR EACH ROW EXECUTE FUNCTION prevent_receipt_delete();
+
+CREATE OR REPLACE FUNCTION prevent_receipt_refund_immutable_update()
+RETURNS trigger AS $$
+BEGIN
+  IF OLD."status" = 'PENDING' AND NEW."status" IN ('SUCCEEDED', 'FAILED') THEN
+    RETURN NEW;
+  END IF;
+  IF OLD."status" IS DISTINCT FROM NEW."status"
+    OR OLD."documentNumber" IS DISTINCT FROM NEW."documentNumber"
+    OR OLD."originalReceiptId" IS DISTINCT FROM NEW."originalReceiptId"
+    OR OLD."amountMinor" IS DISTINCT FROM NEW."amountMinor"
+    OR OLD."currency" IS DISTINCT FROM NEW."currency"
+    OR OLD."reason" IS DISTINCT FROM NEW."reason"
+    OR OLD."paymentRefundId" IS DISTINCT FROM NEW."paymentRefundId"
+    OR OLD."documentHash" IS DISTINCT FROM NEW."documentHash"
+    OR OLD."createdById" IS DISTINCT FROM NEW."createdById"
+    OR OLD."createdAt" IS DISTINCT FROM NEW."createdAt"
+  THEN
+    RAISE EXCEPTION 'Issued receipt refund immutable fields cannot be changed';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "ReceiptRefund_immutable_update"
+BEFORE UPDATE ON "ReceiptRefund"
+FOR EACH ROW EXECUTE FUNCTION prevent_receipt_refund_immutable_update();

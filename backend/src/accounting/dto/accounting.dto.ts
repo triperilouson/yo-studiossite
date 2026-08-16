@@ -33,3 +33,9 @@ export class SendReceiptDto {
 export class CancelReceiptDto {
   @IsString() @Length(3, 500) reason!: string;
 }
+
+export class CreateReceiptRefundDto {
+  @IsInt() @Min(1) @Max(100_000_000) amountMinor!: number;
+  @IsString() @Length(3, 500) reason!: string;
+  @IsOptional() @IsString() @MaxLength(200) paymentRefundId?: string;
+}

@@ -244,6 +244,7 @@ function receiptQuery() {
 
 function receiptRow(receipt) {
     const actions = node("div", "row-actions");
+    const refundedMinor = (receipt.refunds || []).filter((refund) => refund.status === "SUCCEEDED").reduce((sum, refund) => sum + refund.amountMinor, 0);
     actions.append(
         button("PDF", () => YOApi.download(`/admin/accounting/receipts/${receipt.id}/pdf`, `yo-receipt-${receipt.documentNumber}.pdf`).catch((error) => setStatus(error.message, true))),
         button("SEND", async () => {
@@ -252,6 +253,22 @@ function receiptRow(receipt) {
                 if (email === null) return;
                 await YOApi.request(`/admin/accounting/receipts/${receipt.id}/send`, { method: "POST", auth: true, body: { email: email || undefined } });
                 setStatus("Receipt email sent");
+            } catch (error) { setStatus(error.message, true); }
+        }),
+        button("REFUND", async () => {
+            try {
+                const amount = window.prompt("Refund amount ILS", (receipt.amountMinor / 100).toFixed(2));
+                if (!amount) return;
+                const reason = window.prompt("Refund reason");
+                if (!reason) return;
+                const paymentRefundId = window.prompt("Payment refund/reference ID (optional)", "") || undefined;
+                await YOApi.request(`/admin/accounting/receipts/${receipt.id}/refunds`, {
+                    method: "POST",
+                    auth: true,
+                    body: { amountMinor: Math.round(Number(amount) * 100), reason, paymentRefundId },
+                });
+                setStatus("Refund document created");
+                await loadAccounting();
             } catch (error) { setStatus(error.message, true); }
         })
     );
@@ -268,7 +285,7 @@ function receiptRow(receipt) {
         node("strong", "", `#${receipt.documentNumber}`),
         node("span", "", new Date(receipt.issuedAt).toLocaleDateString()),
         node("span", "", `${receipt.customerName} · ${receipt.customerEmail || "NO EMAIL"}`),
-        node("span", "", `${YOApi.formatMoney(receipt.amountMinor, receipt.currency)} · ${receipt.source} · ${receipt.status}`),
+        node("span", "", `${YOApi.formatMoney(receipt.amountMinor, receipt.currency)}${refundedMinor ? ` / REFUNDED ${YOApi.formatMoney(refundedMinor, receipt.currency)}` : ""} · ${receipt.source} · ${receipt.status}`),
         actions,
     ]);
 }
@@ -283,8 +300,9 @@ async function loadAccounting() {
         state.accounting = summary; state.receipts = receipts;
         document.getElementById("accounting-total").textContent = YOApi.formatMoney(summary.totalReceived, "ILS");
         document.getElementById("accounting-net").textContent = YOApi.formatMoney(summary.netReceived, "ILS");
+        document.getElementById("accounting-refunds").textContent = YOApi.formatMoney(summary.refunds, "ILS");
         document.getElementById("accounting-count").textContent = String(summary.receipts);
-        document.getElementById("accounting-cancelled").textContent = String(summary.cancelledReceipts);
+        document.getElementById("accounting-refund-count").textContent = String(summary.refundDocuments);
         const table = document.getElementById("admin-receipts");
         table.replaceChildren(...receipts.map(receiptRow));
         if (!receipts.length) table.append(node("p", "admin-status", "NO RECEIPTS"));

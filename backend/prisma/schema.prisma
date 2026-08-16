@@ -70,6 +70,12 @@ enum ReceiptPaymentMethod {
   OTHER
 }
 
+enum ReceiptRefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
 enum AuthTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -428,6 +434,7 @@ model Receipt {
   cancelledAt       DateTime?
   cancellationReason String?
   events            ReceiptEvent[]
+  refunds           ReceiptRefund[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
@@ -436,6 +443,26 @@ model Receipt {
   @@index([orderId])
   @@index([source, issuedAt])
   @@index([status, issuedAt])
+}
+
+model ReceiptRefund {
+  id                String   @id @default(uuid()) @db.Uuid
+  documentNumber    Int      @unique
+  originalReceipt   Receipt  @relation(fields: [originalReceiptId], references: [id], onDelete: Restrict)
+  originalReceiptId String   @db.Uuid
+  status            ReceiptRefundStatus @default(SUCCEEDED)
+  amountMinor       Int
+  currency          String
+  reason            String
+  paymentRefundId   String?
+  documentHash      String
+  createdById       String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([originalReceiptId])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }
 
 model ReceiptEvent {

@@ -6,7 +6,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthUser } from '../common/types/auth-user';
 import { AccountingService } from './accounting.service';
-import { CancelReceiptDto, CreateReceiptDto, ReceiptQueryDto, SendReceiptDto } from './dto/accounting.dto';
+import {
+  CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto,
+} from './dto/accounting.dto';
 
 @ApiTags('admin-accounting')
 @ApiBearerAuth()
@@ -27,10 +29,14 @@ export class AdminAccountingController {
 
   @Get('reports.csv')
   async csv(@Query() query: ReceiptQueryDto, @Res() reply: FastifyReply) {
-    const receipts = await this.accounting.list({ ...query, take: 200, skip: 0 });
+    const [receipts, refunds] = await Promise.all([
+      this.accounting.list({ ...query, take: 200, skip: 0 }),
+      this.accounting.listRefunds({ ...query, take: 200, skip: 0 }),
+    ]);
     const rows = [
-      ['NUMBER', 'DATE', 'CUSTOMER', 'EMAIL', 'AMOUNT_MINOR', 'CURRENCY', 'SOURCE', 'STATUS', 'PAYMENT_METHOD'],
+      ['TYPE', 'NUMBER', 'DATE', 'CUSTOMER', 'EMAIL', 'AMOUNT_MINOR', 'CURRENCY', 'SOURCE', 'STATUS', 'PAYMENT_METHOD', 'ORIGINAL_RECEIPT'],
       ...receipts.map((receipt) => [
+        'RECEIPT',
         String(receipt.documentNumber),
         receipt.issuedAt.toISOString(),
         receipt.customerName,
@@ -40,6 +46,20 @@ export class AdminAccountingController {
         receipt.source,
         receipt.status,
         receipt.paymentMethod,
+        '',
+      ]),
+      ...refunds.map((refund) => [
+        'REFUND',
+        String(refund.documentNumber),
+        refund.createdAt.toISOString(),
+        refund.originalReceipt.customerName,
+        refund.originalReceipt.customerEmail || '',
+        String(-refund.amountMinor),
+        refund.currency,
+        refund.originalReceipt.source,
+        refund.status,
+        refund.originalReceipt.paymentMethod,
+        String(refund.originalReceipt.documentNumber),
       ]),
     ];
     return reply
@@ -70,6 +90,11 @@ export class AdminAccountingController {
   @Patch('receipts/:id/cancel')
   cancel(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() input: CancelReceiptDto) {
     return this.accounting.cancel(actor.userId, id, input);
+  }
+
+  @Post('receipts/:id/refunds')
+  refund(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() input: CreateReceiptRefundDto) {
+    return this.accounting.createRefund(actor.userId, id, input);
   }
 
   @Get('receipts/:id/events')

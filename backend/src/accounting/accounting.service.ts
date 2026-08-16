@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  OrderStatus, PaymentStatus, Prisma, ReceiptPaymentMethod, ReceiptSource, ReceiptStatus,
+  OrderStatus, PaymentStatus, Prisma, ReceiptPaymentMethod, ReceiptRefundStatus, ReceiptSource, ReceiptStatus,
 } from '@prisma/client';
 import { AdminAuditService } from '../common/admin-audit.service';
 import { MailService } from '../mail/mail.service';
 import type { Environment } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
-import { CancelReceiptDto, CreateReceiptDto, ReceiptQueryDto, SendReceiptDto } from './dto/accounting.dto';
+import {
+  CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto,
+} from './dto/accounting.dto';
 import { buildReceiptPdf, hashReceiptPayload, receiptDocumentPayload } from './receipt-pdf';
 
 type Tx = Prisma.TransactionClient;
@@ -26,17 +28,32 @@ export class AccountingService {
     const where = this.receiptWhere(input);
     return this.prisma.receipt.findMany({
       where,
+      include: { refunds: { orderBy: { createdAt: 'asc' } } },
       orderBy: [{ issuedAt: 'desc' }, { documentNumber: 'desc' }],
       skip: input.skip,
       take: input.take,
     });
   }
 
+  listRefunds(input: ReceiptQueryDto) {
+    return this.prisma.receiptRefund.findMany({
+      where: this.refundWhere(input),
+      include: { originalReceipt: { select: { documentNumber: true, customerName: true, customerEmail: true, source: true, paymentMethod: true } } },
+      orderBy: [{ createdAt: 'desc' }, { documentNumber: 'desc' }],
+      take: input.take,
+    });
+  }
+
   async summary(input: ReceiptQueryDto) {
     const where = this.receiptWhere(input);
-    const [issued, cancelled, byMethod, bySource] = await Promise.all([
+    const [issued, refunds, cancelled, byMethod, bySource] = await Promise.all([
       this.prisma.receipt.aggregate({
         where: { ...where, status: ReceiptStatus.ISSUED },
+        _sum: { amountMinor: true },
+        _count: { _all: true },
+      }),
+      this.prisma.receiptRefund.aggregate({
+        where: { ...this.refundWhere(input), status: ReceiptRefundStatus.SUCCEEDED },
         _sum: { amountMinor: true },
         _count: { _all: true },
       }),
@@ -59,12 +76,14 @@ export class AccountingService {
       }),
     ]);
     const totalReceived = issued._sum.amountMinor || 0;
-    const cancellations = cancelled._sum.amountMinor || 0;
+    const refundAmount = refunds._sum.amountMinor || 0;
     return {
       totalReceived,
-      cancellations,
-      netReceived: totalReceived - cancellations,
+      refunds: refundAmount,
+      cancellations: cancelled._sum.amountMinor || 0,
+      netReceived: totalReceived - refundAmount,
       receipts: issued._count._all,
+      refundDocuments: refunds._count._all,
       cancelledReceipts: cancelled._count._all,
       byPaymentMethod: byMethod.map((row) => ({
         paymentMethod: row.paymentMethod,
@@ -242,6 +261,68 @@ export class AccountingService {
     return updated;
   }
 
+  async createRefund(actorId: string, originalReceiptId: string, input: CreateReceiptRefundDto) {
+    const refund = await this.prisma.$transaction(async (tx) => {
+      const paymentRefundId = input.paymentRefundId?.trim() || null;
+      if (paymentRefundId) {
+        const existing = await tx.receiptRefund.findUnique({ where: { paymentRefundId } });
+        if (existing) return existing;
+      }
+      const original = await tx.receipt.findUnique({
+        where: { id: originalReceiptId },
+        include: { refunds: true },
+      });
+      if (!original) throw new NotFoundException('Receipt not found');
+      if (original.status !== ReceiptStatus.ISSUED) throw new ConflictException('Only issued receipts can be refunded');
+      if (input.amountMinor <= 0) throw new ConflictException('Refund amount must be positive');
+      const refunded = original.refunds
+        .filter((item) => item.status === ReceiptRefundStatus.SUCCEEDED || item.status === ReceiptRefundStatus.PENDING)
+        .reduce((sum, item) => sum + item.amountMinor, 0);
+      if (refunded + input.amountMinor > original.amountMinor) {
+        throw new ConflictException('Refund amount exceeds the original receipt amount');
+      }
+      const documentNumber = await this.nextDocumentNumber(tx);
+      const payload = {
+        documentNumber,
+        originalReceiptId,
+        originalDocumentNumber: original.documentNumber,
+        amountMinor: input.amountMinor,
+        currency: original.currency,
+        reason: input.reason.trim(),
+        paymentRefundId,
+      };
+      const created = await tx.receiptRefund.create({
+        data: {
+          documentNumber,
+          originalReceiptId,
+          amountMinor: input.amountMinor,
+          status: ReceiptRefundStatus.SUCCEEDED,
+          currency: original.currency,
+          reason: input.reason.trim(),
+          paymentRefundId,
+          documentHash: hashReceiptPayload(payload),
+          createdById: actorId,
+        },
+      });
+      await tx.receiptEvent.create({
+        data: {
+          receiptId: originalReceiptId,
+          actorId,
+          actorType: 'ADMIN',
+          action: 'RECEIPT_REFUND_CREATED',
+          metadata: { refundId: created.id, refundDocumentNumber: created.documentNumber, amountMinor: created.amountMinor },
+        },
+      });
+      return created;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await this.audit.record(actorId, 'RECEIPT_REFUND_CREATED', 'ReceiptRefund', refund.id, {
+      originalReceiptId,
+      documentNumber: refund.documentNumber,
+      amountMinor: refund.amountMinor,
+    });
+    return refund;
+  }
+
   events(id: string) {
     return this.prisma.receiptEvent.findMany({ where: { receiptId: id }, orderBy: { createdAt: 'asc' } });
   }
@@ -278,6 +359,26 @@ export class AccountingService {
     ] : [];
     return {
       ...(Object.keys(issuedAt).length ? { issuedAt } : {}),
+      ...(search.length ? { OR: search } : {}),
+    };
+  }
+
+  private refundWhere(input: ReceiptQueryDto): Prisma.ReceiptRefundWhereInput {
+    const createdAt = {
+      ...(input.from ? { gte: new Date(input.from) } : {}),
+      ...(input.to ? { lte: new Date(input.to) } : {}),
+    };
+    const q = input.q?.trim();
+    const search: Prisma.ReceiptRefundWhereInput[] = q ? [
+      ...(String(Number(q)) === q ? [{ documentNumber: Number(q) }] : []),
+      { reason: { contains: q, mode: 'insensitive' } },
+      { originalReceipt: { customerEmail: { contains: q, mode: 'insensitive' } } },
+      { originalReceipt: { customerName: { contains: q, mode: 'insensitive' } } },
+      { originalReceiptId: { equals: this.uuidOrNever(q) } },
+      { paymentRefundId: { contains: q, mode: 'insensitive' } },
+    ] : [];
+    return {
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
       ...(search.length ? { OR: search } : {}),
     };
   }
