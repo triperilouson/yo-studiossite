@@ -1,6 +1,6 @@
 import { PrismaClient, ProductStatus, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
@@ -103,6 +103,10 @@ async function seedSuperAdmin(): Promise<void> {
 
 async function seedGameEditor(): Promise<void> {
   const sourceDir = resolve(process.cwd(), '..', 'frontend', 'showroom', 'assets');
+  if (!existsSync(sourceDir)) {
+    console.warn(`Skipping game editor seed: asset directory not found at ${sourceDir}`);
+    return;
+  }
   const assets = [
     { slug: 'builtin-player', name: 'YO PLAYER SPRITESHEET', category: 'characters', file: 'player.png', allowFlipY: false },
     { slug: 'builtin-furniture', name: 'YO FURNITURE ATLAS', category: 'furniture', file: 'furniture.png', allowFlipY: false },
@@ -114,7 +118,12 @@ async function seedGameEditor(): Promise<void> {
     { slug: 'builtin-dark-jacket', name: 'DARK JACKET SPRITE', category: 'clothing', file: 'dark-jacket.png', allowFlipY: false },
   ];
   for (const source of assets) {
-    const imageData = readFileSync(resolve(sourceDir, source.file));
+    const sourcePath = resolve(sourceDir, source.file);
+    if (!existsSync(sourcePath)) {
+      console.warn(`Skipping game editor asset ${source.slug}: file not found at ${sourcePath}`);
+      continue;
+    }
+    const imageData = readFileSync(sourcePath);
     const width = imageData.readUInt32BE(16);
     const height = imageData.readUInt32BE(20);
     const asset = await prisma.gameAsset.upsert({
