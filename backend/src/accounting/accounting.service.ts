@@ -265,7 +265,7 @@ export class AccountingService {
     const refund = await this.prisma.$transaction(async (tx) => {
       const paymentRefundId = input.paymentRefundId?.trim() || null;
       if (paymentRefundId) {
-        const existing = await tx.receiptRefund.findUnique({ where: { paymentRefundId } });
+        const existing = await tx.receiptRefund.findFirst({ where: { paymentRefundId } });
         if (existing) return existing;
       }
       const original = await tx.receipt.findUnique({
