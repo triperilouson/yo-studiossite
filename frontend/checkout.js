@@ -187,6 +187,10 @@ async function loadCheckout() {
         addressList.replaceChildren(...addresses.map(addressChoice), newAddressChoice(!addresses.length));
         toggleDeliveryForm();
         pickupPanel.replaceChildren(...shipping.pickupLocations.map(pickupChoice));
+        if (!shipping.pickupLocations.length) {
+            pickupPanel.append(span("NO PICKUP LOCATIONS ARE ACTIVE"));
+            selectedPickupLocationId = null;
+        }
         if (!addresses.length) setCheckoutStatus("Enter a delivery address below or choose pickup");
         if (!cart.items.length) setCheckoutStatus("Your cart is empty");
         await refreshQuote();

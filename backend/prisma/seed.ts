@@ -101,6 +101,31 @@ async function seedSuperAdmin(): Promise<void> {
   });
 }
 
+async function seedShipping(): Promise<void> {
+  await prisma.pickupLocation.upsert({
+    where: { slug: 'yo-studios-pickup' },
+    update: {
+      name: 'YO STUDIOS PICKUP',
+      country: 'IL',
+      city: 'Tel Aviv',
+      address: 'Pickup address to be confirmed',
+      details: 'Update this pickup location in the admin shipping panel before production orders.',
+      isActive: true,
+      sortOrder: 10,
+    },
+    create: {
+      slug: 'yo-studios-pickup',
+      name: 'YO STUDIOS PICKUP',
+      country: 'IL',
+      city: 'Tel Aviv',
+      address: 'Pickup address to be confirmed',
+      details: 'Update this pickup location in the admin shipping panel before production orders.',
+      isActive: true,
+      sortOrder: 10,
+    },
+  });
+}
+
 async function seedGameEditor(): Promise<void> {
   const sourceDir = resolve(process.cwd(), '..', 'frontend', 'showroom', 'assets');
   if (!existsSync(sourceDir)) {
@@ -157,6 +182,7 @@ async function main(): Promise<void> {
   await removeLegacyGameProducts();
   await seedProducts();
   await seedSuperAdmin();
+  await seedShipping();
   await seedGameEditor();
 }
 
