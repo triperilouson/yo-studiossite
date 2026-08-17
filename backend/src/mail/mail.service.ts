@@ -30,7 +30,10 @@ type MailMessage = {
   text: string;
   html: string;
   headers?: Record<string, string>;
+  channel?: MailChannel;
 };
+
+type MailChannel = 'orders' | 'support' | 'marketing' | 'system';
 
 @Injectable()
 export class MailService {
@@ -42,6 +45,7 @@ export class MailService {
   sendEmailVerification(to: string, token: string): Promise<void> {
     const link = this.frontendLink(`auth.html?verify=${encodeURIComponent(token)}`);
     return this.send({
+      channel: 'system',
       to,
       subject: 'Verify your YO STUDIOS account',
       text: [
@@ -63,6 +67,7 @@ export class MailService {
   sendPasswordReset(to: string, token: string): Promise<void> {
     const link = this.frontendLink(`auth.html?reset=${encodeURIComponent(token)}`);
     return this.send({
+      channel: 'system',
       to,
       subject: 'Reset your YO STUDIOS password',
       text: [
@@ -115,6 +120,7 @@ export class MailService {
       <p><strong>${this.escape(this.money(receipt.amountMinor, receipt.currency))}</strong></p>
     `);
     await this.sendRaw({
+      channel: 'orders',
       to,
       subject,
       text,
@@ -155,6 +161,7 @@ export class MailService {
 
   sendSupportReply(to: string, subject: string, body: string, messageId: string): Promise<void> {
     return this.sendRaw({
+      channel: 'support',
       to,
       subject: `YO STUDIOS support: ${subject}`,
       headers: { 'Message-ID': messageId },
@@ -175,6 +182,7 @@ export class MailService {
     const rows = order.items.map((item) =>
       `${item.titleSnapshot} / ${item.sizeSnapshot} x ${item.quantity} - ${this.money(item.unitPriceMinor * item.quantity, order.currency)}`);
     await this.send({
+      channel: 'orders',
       to: order.emailSnapshot,
       subject,
       text: [
@@ -214,9 +222,9 @@ export class MailService {
         this.logger.log(`[console-mail] ${message.subject} -> ${message.to}\n${message.text}`);
         return;
       }
-      const from = this.config.get('SES_FROM_EMAIL', { infer: true });
+      const from = this.fromAddress(message.channel);
       const fromName = this.config.get('SES_FROM_NAME', { infer: true });
-      const replyTo = this.config.get('SES_REPLY_TO', { infer: true });
+      const replyTo = this.replyToAddress(message.channel);
       const configurationSetName = this.config.get('SES_CONFIGURATION_SET', { infer: true });
       const client = this.getSesClient();
       await client.send(new SendEmailCommand({
@@ -248,9 +256,9 @@ export class MailService {
         this.logger.log(`[console-mail] ${message.subject} -> ${message.to}\n${message.text}\n[attachments] ${message.attachments.map((item) => item.filename).join(', ')}`);
         return;
       }
-      const from = this.config.get('SES_FROM_EMAIL', { infer: true });
+      const from = this.fromAddress(message.channel);
       const fromName = this.config.get('SES_FROM_NAME', { infer: true });
-      const replyTo = this.config.get('SES_REPLY_TO', { infer: true });
+      const replyTo = this.replyToAddress(message.channel);
       const configurationSetName = this.config.get('SES_CONFIGURATION_SET', { infer: true });
       const boundary = `yo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
       const related = [
@@ -307,6 +315,24 @@ export class MailService {
       this.ses = new SESv2Client({ region: this.config.get('SES_REGION', { infer: true }) });
     }
     return this.ses;
+  }
+
+  private fromAddress(channel: MailChannel = 'system'): string {
+    const fallback = this.config.get('SES_FROM_EMAIL', { infer: true });
+    const keys: Record<MailChannel, 'SES_FROM_ORDERS' | 'SES_FROM_SUPPORT' | 'SES_FROM_MARKETING' | 'SES_FROM_SYSTEM'> = {
+      orders: 'SES_FROM_ORDERS',
+      support: 'SES_FROM_SUPPORT',
+      marketing: 'SES_FROM_MARKETING',
+      system: 'SES_FROM_SYSTEM',
+    };
+    return this.config.get(keys[channel], { infer: true }) || fallback || 'noreply@yo-studios.com';
+  }
+
+  private replyToAddress(channel: MailChannel = 'system'): string {
+    if (channel === 'support') {
+      return this.config.get('SES_FROM_SUPPORT', { infer: true }) || this.config.get('SES_REPLY_TO', { infer: true });
+    }
+    return this.config.get('SES_REPLY_TO', { infer: true });
   }
 
   private frontendLink(path: string): string {

@@ -139,7 +139,9 @@ export class SupportService {
         messages: {
           create: {
             direction: SupportMessageDirection.OUTBOUND,
-            fromEmail: this.config.get('SES_FROM_EMAIL', { infer: true }) || 'support@yo-studios.com',
+            fromEmail: this.config.get('SES_FROM_SUPPORT', { infer: true }) ||
+              this.config.get('SES_FROM_EMAIL', { infer: true }) ||
+              'support@yo-studios.com',
             toEmail: thread.email,
             body,
             messageId,
