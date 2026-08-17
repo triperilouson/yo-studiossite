@@ -24,6 +24,15 @@ export type OrderMailSnapshot = {
   items: OrderMailItem[];
 };
 
+export type MarketingMailInput = {
+  subject: string;
+  title: string;
+  body: string;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  imageUrls?: string[];
+};
+
 type MailMessage = {
   to: string;
   subject: string;
@@ -175,6 +184,30 @@ export class MailService {
         <p class="muted">Reply to this email to continue the conversation.</p>
       `),
       attachments: [],
+    });
+  }
+
+  sendMarketingCampaign(to: string, campaign: MarketingMailInput): Promise<void> {
+    const images = (campaign.imageUrls ?? []).slice(0, 8);
+    return this.send({
+      channel: 'marketing',
+      to,
+      subject: campaign.subject,
+      text: [
+        campaign.title,
+        '',
+        campaign.body,
+        '',
+        campaign.ctaUrl ? `${campaign.ctaLabel || 'Open'}: ${campaign.ctaUrl}` : '',
+      ].filter(Boolean).join('\n'),
+      html: this.layout(campaign.title, `
+        <p>${this.escape(campaign.body).replaceAll('\n', '<br>')}</p>
+        ${images.length ? `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:18px 0">${images.map((url) => `
+          <img src="${this.escape(url)}" alt="" style="width:100%;height:auto;border:1px solid #272a27">
+        `).join('')}</div>` : ''}
+        ${campaign.ctaUrl ? `<p><a href="${this.escape(campaign.ctaUrl)}">${this.escape(campaign.ctaLabel || 'Open drop')}</a></p>` : ''}
+        <p class="muted">You are receiving this because you subscribed to YO STUDIOS updates.</p>
+      `),
     });
   }
 

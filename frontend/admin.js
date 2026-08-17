@@ -1,6 +1,6 @@
 "use strict";
 
-const state = { admin: null, products: [], seasons: [], shipping: null, overview: null, receipts: [], accounting: null };
+const state = { admin: null, products: [], seasons: [], shipping: null, overview: null, receipts: [], accounting: null, campaigns: [] };
 const statusLine = document.getElementById("admin-status");
 const dialog = document.getElementById("product-dialog");
 const productForm = document.getElementById("product-form");
@@ -39,6 +39,7 @@ function switchView(name) {
     if (name === "security") void loadOverview();
     if (name === "accounting") void loadAccounting();
     if (name === "support") void loadSupport();
+    if (name === "marketing") void loadMarketing();
 }
 
 document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
@@ -592,15 +593,31 @@ function renderPickup(location) {
 
 async function loadSupport() {
     try {
-        const threads = await YOApi.request("/admin/support/threads", { auth: true });
+        const params = new URLSearchParams();
+        const q = document.getElementById("support-search")?.value.trim();
+        const status = document.getElementById("support-status-filter")?.value;
+        const sort = document.getElementById("support-sort")?.value;
+        const includeArchived = document.getElementById("support-include-archived")?.checked;
+        if (q) params.set("q", q);
+        if (status) params.set("status", status);
+        if (sort) params.set("sort", sort);
+        if (includeArchived) params.set("includeArchived", "true");
+        const threads = await YOApi.request(`/admin/support/threads${params.size ? `?${params}` : ""}`, { auth: true });
         const container = document.getElementById("admin-support");
         container.replaceChildren(...threads.map((thread) => {
             const card = node("article", "support-thread");
             const heading = node("div", "panel-heading");
             heading.append(
-                node("h2", "", `${thread.subject} · ${thread.email}`),
+                node("h2", "", `${thread.subject} · ${thread.email}${thread.archivedAt ? " · ARCHIVED" : ""}`),
                 node("span", "", thread.status.replaceAll("_", " "))
             );
+            const context = node("div", "support-context");
+            if (thread.user) {
+                context.append(node("p", "", `${thread.user.firstName} ${thread.user.lastName} · ${thread.user.email} · ${thread.user.phone || "NO PHONE"}`));
+                thread.user.orders.forEach((order) => {
+                    context.append(node("p", "", `${order.id.slice(0, 8).toUpperCase()} · ${order.status}/${order.fulfillmentStatus} · ${YOApi.formatMoney(order.totalMinor, order.currency)} · ${order.items.map((item) => `${item.titleSnapshot} ${item.sizeSnapshot} x${item.quantity}`).join(" / ")}`));
+                });
+            } else context.append(node("p", "", "NO LINKED ACCOUNT"));
             const messages = node("div", "support-messages");
             thread.messages.forEach((message) => {
                 const item = node("p", message.direction.toLowerCase(), `${message.direction}: ${message.body}`);
@@ -621,10 +638,52 @@ async function loadSupport() {
                     await loadSupport();
                 } catch (error) { setStatus(error.message, true); }
             }, "secondary-action");
-            card.append(heading, messages, textarea, send);
+            const actions = node("div", "inline-actions");
+            actions.append(
+                send,
+                button("CLOSE", async () => {
+                    await YOApi.request(`/admin/support/threads/${thread.id}/close`, { method: "PATCH", auth: true });
+                    setStatus("Support thread closed"); await loadSupport();
+                }, "secondary-action"),
+                button("ARCHIVE", async () => {
+                    await YOApi.request(`/admin/support/threads/${thread.id}/archive`, { method: "PATCH", auth: true });
+                    setStatus("Support thread archived"); await loadSupport();
+                }, "secondary-action")
+            );
+            card.append(heading, context, messages, textarea, actions);
             return card;
         }));
         if (!threads.length) container.textContent = "NO SUPPORT THREADS";
+    } catch (error) { setStatus(error.message, true); }
+}
+
+function renderCampaign(campaign) {
+    const recipients = campaign.recipients || [];
+    const sent = recipients.filter((item) => item.status === "SENT").length;
+    const failed = recipients.filter((item) => item.status === "FAILED").length;
+    const action = campaign.status === "DRAFT" || campaign.status === "FAILED"
+        ? button("SEND", async () => {
+            if (!window.confirm(`Send "${campaign.subject}" to ${campaign.audience} subscribers?`)) return;
+            try {
+                await YOApi.request(`/admin/marketing/campaigns/${campaign.id}/send`, { method: "POST", auth: true });
+                setStatus("Campaign sent"); await loadMarketing();
+            } catch (error) { setStatus(error.message, true); }
+        })
+        : node("span", "", "—");
+    return tableRow([
+        node("strong", "", campaign.subject),
+        node("span", "", `${campaign.audience} · ${campaign.status}`),
+        node("span", "", `${campaign._count?.recipients || 0} RECIPIENTS · ${sent} SENT · ${failed} FAILED`),
+        action
+    ]);
+}
+
+async function loadMarketing() {
+    try {
+        state.campaigns = await YOApi.request("/admin/marketing/campaigns", { auth: true });
+        const container = document.getElementById("admin-marketing");
+        container.replaceChildren(...state.campaigns.map(renderCampaign));
+        if (!state.campaigns.length) container.textContent = "NO CAMPAIGNS YET";
     } catch (error) { setStatus(error.message, true); }
 }
 
@@ -662,6 +721,37 @@ document.getElementById("pickup-form").addEventListener("submit", async (event) 
             body: { slug: values.slug, name: values.name, country: values.country.toUpperCase(), city: values.city, address: values.address }
         });
         form.reset(); setStatus("Pickup location added"); await loadShipping();
+    } catch (error) { setStatus(error.message, true); }
+});
+
+["support-search", "support-status-filter", "support-sort", "support-include-archived"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", () => loadSupport());
+    document.getElementById(id)?.addEventListener("change", () => loadSupport());
+});
+
+document.getElementById("marketing-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.admin?.role !== "SUPER_ADMIN") { setStatus("SUPER_ADMIN required", true); return; }
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const imageUrls = String(values.imageUrls || "").split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+    try {
+        await YOApi.request("/admin/marketing/campaigns", {
+            method: "POST",
+            auth: true,
+            body: {
+                audience: values.audience,
+                subject: values.subject,
+                title: values.title,
+                body: values.body,
+                ctaLabel: values.ctaLabel || undefined,
+                ctaUrl: values.ctaUrl || undefined,
+                imageUrls,
+            },
+        });
+        form.reset();
+        setStatus("Campaign draft created");
+        await loadMarketing();
     } catch (error) { setStatus(error.message, true); }
 });
 
@@ -744,6 +834,7 @@ async function bootAdmin() {
         document.getElementById("admin-email").textContent = state.admin.email;
         document.getElementById("admin-role").textContent = state.admin.role;
         document.getElementById("game-editor-link").classList.toggle("hidden", state.admin.role !== "SUPER_ADMIN");
+        document.querySelector('[data-view="marketing"]').classList.toggle("hidden", state.admin.role !== "SUPER_ADMIN");
         document.getElementById("mfa-status").textContent = state.admin.adminMfaEnabled ? "ENABLED · REQUIRED AT EVERY NEW LOGIN" : "DISABLED · ENABLE BEFORE PRODUCTION";
         document.getElementById("mfa-enable").hidden = state.admin.adminMfaEnabled;
         document.getElementById("mfa-disable").hidden = !state.admin.adminMfaEnabled;

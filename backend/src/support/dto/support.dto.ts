@@ -1,4 +1,6 @@
-import { IsEmail, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { SupportThreadStatus } from '@prisma/client';
 
 export class CreateSupportThreadDto {
   @IsEmail() @MaxLength(254) email!: string;
@@ -21,4 +23,11 @@ export class InboundSupportEmailDto {
 
 export class SupportReplyDto {
   @IsString() @Length(2, 5000) message!: string;
+}
+
+export class SupportThreadQueryDto {
+  @IsOptional() @IsString() @MaxLength(120) q?: string;
+  @IsOptional() @IsEnum(SupportThreadStatus) status?: SupportThreadStatus;
+  @IsOptional() @IsIn(['newest', 'oldest', 'updated']) sort?: 'newest' | 'oldest' | 'updated';
+  @IsOptional() @Transform(({ value }) => value === 'true' || value === true) @IsBoolean() includeArchived?: boolean;
 }

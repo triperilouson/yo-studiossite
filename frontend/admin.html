@@ -22,8 +22,9 @@
                 <button class="nav-item" data-view="security" type="button">SECURITY <span>07</span></button>
                 <button class="nav-item" data-view="accounting" type="button">ACCOUNTING <span>08</span></button>
                 <button class="nav-item" data-view="support" type="button">SUPPORT <span>09</span></button>
-                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>10</span></button>
-                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>11</span></a>
+                <button class="nav-item" data-view="marketing" type="button">MARKETING <span>10</span></button>
+                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>11</span></button>
+                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>12</span></a>
             </nav>
             <div class="admin-presence"><i></i><span>SECURE SESSION</span></div>
         </aside>
@@ -117,7 +118,30 @@
 
             <section class="admin-view" data-view-panel="support">
                 <div class="view-toolbar"><div><h2>SUPPORT INBOX</h2><p>Customer messages and email replies.</p></div></div>
+                <div class="filter-row support-filters">
+                    <input id="support-search" type="search" placeholder="SEARCH EMAIL, SUBJECT, MESSAGE">
+                    <select id="support-status-filter"><option value="">ACTIVE</option><option>OPEN</option><option>WAITING_CUSTOMER</option><option>CLOSED</option><option>ARCHIVED</option></select>
+                    <select id="support-sort"><option value="updated">LAST UPDATED</option><option value="newest">NEWEST</option><option value="oldest">OLDEST</option></select>
+                    <label class="inline-check"><input id="support-include-archived" type="checkbox"> ARCHIVED</label>
+                </div>
                 <div id="admin-support" class="support-thread-list"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="marketing">
+                <div class="view-toolbar"><div><h2>DROP EMAILS</h2><p>SUPER_ADMIN campaigns for opted-in subscribers.</p></div></div>
+                <form id="marketing-form" class="admin-panel admin-inline-form">
+                    <div class="form-grid">
+                        <label>AUDIENCE<select name="audience"><option>DROPS</option><option>INSIDERS</option><option>ALL_MARKETING</option></select></label>
+                        <label>SUBJECT<input name="subject" required maxlength="180" placeholder="YO STUDIOS S03 DROP"></label>
+                        <label>TITLE<input name="title" required maxlength="160" placeholder="SEASON 03 IS LIVE"></label>
+                        <label>CTA LABEL<input name="ctaLabel" maxlength="80" placeholder="VIEW DROP"></label>
+                        <label class="full-field">CTA URL<input name="ctaUrl" type="url" maxlength="2048" placeholder="https://yo-studios.com/seasons.html"></label>
+                        <label class="full-field">IMAGE URLS<textarea name="imageUrls" maxlength="4000" placeholder="https://images.yo-studios.com/drop/1.png&#10;https://images.yo-studios.com/drop/2.png"></textarea></label>
+                        <label class="full-field">BODY<textarea name="body" required maxlength="5000" placeholder="Drop text, season story, product notes."></textarea></label>
+                    </div>
+                    <button class="primary-action" type="submit">CREATE CAMPAIGN</button>
+                </form>
+                <div id="admin-marketing" class="admin-table"></div>
             </section>
 
             <section class="admin-view" data-view-panel="accounting">

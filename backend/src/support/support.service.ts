@@ -1,10 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupportMessageDirection, SupportThreadStatus } from '@prisma/client';
+import { Prisma, SupportMessageDirection, SupportThreadStatus } from '@prisma/client';
 import type { Environment } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { CreateSupportThreadDto, InboundSupportEmailDto, SupportReplyDto } from './dto/support.dto';
+import type { CreateSupportThreadDto, InboundSupportEmailDto, SupportReplyDto, SupportThreadQueryDto } from './dto/support.dto';
 
 const threadSelect = {
   id: true,
@@ -14,6 +14,29 @@ const threadSelect = {
   status: true,
   createdAt: true,
   updatedAt: true,
+  archivedAt: true,
+  user: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      orders: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 10,
+        select: {
+          id: true,
+          status: true,
+          fulfillmentStatus: true,
+          totalMinor: true,
+          currency: true,
+          createdAt: true,
+          items: { select: { titleSnapshot: true, sizeSnapshot: true, quantity: true } },
+        },
+      },
+    },
+  },
   messages: {
     orderBy: { createdAt: 'asc' as const },
     select: {
@@ -39,10 +62,12 @@ export class SupportService {
     private readonly config: ConfigService<Environment, true>,
   ) {}
 
-  createThread(input: CreateSupportThreadDto) {
+  async createThread(input: CreateSupportThreadDto) {
     const email = input.email.trim().toLowerCase();
+    const user = await this.findUserByEmail(email);
     return this.prisma.supportThread.create({
       data: {
+        userId: user?.id,
         email,
         name: input.name?.trim() || undefined,
         subject: input.subject.trim(),
@@ -74,12 +99,14 @@ export class SupportService {
       if (existing) return { accepted: true as const, duplicate: true, threadId: existing.threadId };
     }
     const email = input.fromEmail.trim().toLowerCase();
+    const user = await this.findUserByEmail(email);
     const parent = await this.findParentMessage(inReplyTo, references);
     const thread = parent
       ? await this.prisma.supportThread.update({
         where: { id: parent.threadId },
         data: {
           status: SupportThreadStatus.OPEN,
+          archivedAt: null,
           messages: {
             create: {
               direction: SupportMessageDirection.INBOUND,
@@ -97,6 +124,7 @@ export class SupportService {
       })
       : await this.prisma.supportThread.create({
         data: {
+          userId: user?.id,
           email,
           name: input.fromName?.trim() || undefined,
           subject: input.subject.trim(),
@@ -118,10 +146,30 @@ export class SupportService {
     return { accepted: true as const, duplicate: false, threadId: thread.id };
   }
 
-  listForAdmin() {
+  async listForAdmin(query: SupportThreadQueryDto = {}) {
+    await this.archiveExpiredClosedThreads();
+    const q = query.q?.trim();
+    const where: Prisma.SupportThreadWhereInput = {
+      ...(query.includeArchived ? {} : { archivedAt: null, status: { not: SupportThreadStatus.ARCHIVED } }),
+      ...(query.status ? { status: query.status } : {}),
+      ...(q ? {
+        OR: [
+          { email: { contains: q, mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { subject: { contains: q, mode: 'insensitive' } },
+          { user: { is: { email: { contains: q, mode: 'insensitive' } } } },
+          { messages: { some: { body: { contains: q, mode: 'insensitive' } } } },
+        ],
+      } : {}),
+    };
+    const orderBy =
+      query.sort === 'oldest' ? { createdAt: 'asc' as const } :
+        query.sort === 'newest' ? { createdAt: 'desc' as const } :
+          { updatedAt: 'desc' as const };
     return this.prisma.supportThread.findMany({
+      where,
       select: threadSelect,
-      orderBy: { updatedAt: 'desc' },
+      orderBy,
       take: 100,
     });
   }
@@ -136,6 +184,7 @@ export class SupportService {
       where: { id: threadId },
       data: {
         status: SupportThreadStatus.WAITING_CUSTOMER,
+        archivedAt: null,
         messages: {
           create: {
             direction: SupportMessageDirection.OUTBOUND,
@@ -150,6 +199,41 @@ export class SupportService {
       },
       select: threadSelect,
     });
+  }
+
+  async close(threadId: string) {
+    await this.ensureThread(threadId);
+    return this.prisma.supportThread.update({
+      where: { id: threadId },
+      data: { status: SupportThreadStatus.CLOSED },
+      select: threadSelect,
+    });
+  }
+
+  async archive(threadId: string) {
+    await this.ensureThread(threadId);
+    return this.prisma.supportThread.update({
+      where: { id: threadId },
+      data: { status: SupportThreadStatus.ARCHIVED, archivedAt: new Date() },
+      select: threadSelect,
+    });
+  }
+
+  private async ensureThread(threadId: string): Promise<void> {
+    const thread = await this.prisma.supportThread.findUnique({ where: { id: threadId }, select: { id: true } });
+    if (!thread) throw new NotFoundException('Support thread not found');
+  }
+
+  private async archiveExpiredClosedThreads(): Promise<void> {
+    const threshold = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    await this.prisma.supportThread.updateMany({
+      where: { status: SupportThreadStatus.CLOSED, archivedAt: null, updatedAt: { lte: threshold } },
+      data: { status: SupportThreadStatus.ARCHIVED, archivedAt: new Date() },
+    });
+  }
+
+  private findUserByEmail(email: string) {
+    return this.prisma.user.findUnique({ where: { email }, select: { id: true } });
   }
 
   private async findParentMessage(inReplyTo: string | undefined, references: string | undefined) {

@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { CreateSupportThreadDto, InboundSupportEmailDto, SupportReplyDto } from './dto/support.dto';
+import { CreateSupportThreadDto, InboundSupportEmailDto, SupportReplyDto, SupportThreadQueryDto } from './dto/support.dto';
 import { SupportService } from './support.service';
 
 @ApiTags('support')
@@ -40,13 +40,25 @@ export class AdminSupportController {
 
   @Get('threads')
   @ApiOperation({ summary: 'List support threads' })
-  list() {
-    return this.support.listForAdmin();
+  list(@Query() query: SupportThreadQueryDto) {
+    return this.support.listForAdmin(query);
   }
 
   @Post('threads/:id/reply')
   @ApiOperation({ summary: 'Reply to a support thread by email' })
   reply(@Param('id', ParseUUIDPipe) id: string, @Body() input: SupportReplyDto) {
     return this.support.reply(id, input);
+  }
+
+  @Patch('threads/:id/close')
+  @ApiOperation({ summary: 'Close a support thread' })
+  close(@Param('id', ParseUUIDPipe) id: string) {
+    return this.support.close(id);
+  }
+
+  @Patch('threads/:id/archive')
+  @ApiOperation({ summary: 'Archive a support thread' })
+  archive(@Param('id', ParseUUIDPipe) id: string) {
+    return this.support.archive(id);
   }
 }

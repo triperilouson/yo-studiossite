@@ -2,6 +2,7 @@
 
 const accountStatus = document.getElementById("account-status");
 const profileForm = document.getElementById("profile-form");
+const marketingForm = document.getElementById("marketing-form");
 const addressForm = document.getElementById("address-form");
 const addressList = document.getElementById("address-list");
 const orderList = document.getElementById("order-list");
@@ -144,6 +145,24 @@ profileForm.addEventListener("submit", async (event) => {
     try {
         await YOApi.request("/users/me", { method: "PATCH", auth: true, body });
         setStatus("Profile saved");
+    } catch (error) {
+        setStatus(error.message);
+    }
+});
+
+marketingForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+        await YOApi.request("/marketing/subscribe", {
+            method: "POST",
+            body: {
+                email: profileForm.elements.email.value,
+                drops: marketingForm.elements.drops.checked,
+                insiders: marketingForm.elements.insiders.checked,
+                consentAccepted: marketingForm.elements.consentAccepted.checked
+            }
+        });
+        setStatus("Email updates saved");
     } catch (error) {
         setStatus(error.message);
     }

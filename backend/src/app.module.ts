@@ -24,6 +24,7 @@ import { GameEditorModule } from './game-editor/game-editor.module';
 import { MediaModule } from './media/media.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { SupportModule } from './support/support.module';
+import { MarketingModule } from './marketing/marketing.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SupportModule } from './support/support.module';
     GameEditorModule,
     AccountingModule,
     SupportModule,
+    MarketingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -89,11 +89,36 @@ enum SupportThreadStatus {
   OPEN
   WAITING_CUSTOMER
   CLOSED
+  ARCHIVED
 }
 
 enum SupportMessageDirection {
   INBOUND
   OUTBOUND
+}
+
+enum MarketingSubscriptionStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+}
+
+enum MarketingCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  FAILED
+}
+
+enum MarketingCampaignAudience {
+  DROPS
+  INSIDERS
+  ALL_MARKETING
+}
+
+enum MarketingRecipientStatus {
+  PENDING
+  SENT
+  FAILED
 }
 
 enum AuthTokenType {
@@ -121,6 +146,10 @@ model User {
   authTokens          AuthToken[]
   cart                Cart?
   orders              Order[]
+  supportThreads      SupportThread[]
+  marketingSubscription MarketingSubscription?
+  marketingCampaigns  MarketingCampaign[] @relation("MarketingCampaignCreator")
+  marketingRecipients MarketingCampaignRecipient[]
   adminAuditLogs      AdminAuditLog[]
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
@@ -130,16 +159,21 @@ model User {
 
 model SupportThread {
   id        String              @id @default(uuid()) @db.Uuid
+  user      User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?             @db.Uuid
   email     String
   name      String?
   subject   String
   status    SupportThreadStatus @default(OPEN)
   messages  SupportMessage[]
+  archivedAt DateTime?
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
 
   @@index([status, updatedAt])
   @@index([email, createdAt])
+  @@index([userId, updatedAt])
+  @@index([archivedAt])
 }
 
 model SupportMessage {
@@ -161,6 +195,63 @@ model SupportMessage {
   @@unique([messageId])
   @@index([threadId, createdAt])
   @@index([inReplyTo])
+}
+
+model MarketingSubscription {
+  id             String                      @id @default(uuid()) @db.Uuid
+  email          String                      @unique
+  user           User?                       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId         String?                     @unique @db.Uuid
+  status         MarketingSubscriptionStatus @default(SUBSCRIBED)
+  drops          Boolean                     @default(true)
+  insiders       Boolean                     @default(false)
+  consentText    String
+  consentAt      DateTime                    @default(now())
+  unsubscribedAt DateTime?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  @@index([status, drops])
+  @@index([status, insiders])
+}
+
+model MarketingCampaign {
+  id          String                    @id @default(uuid()) @db.Uuid
+  createdBy   User                      @relation("MarketingCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdById String                    @db.Uuid
+  status      MarketingCampaignStatus   @default(DRAFT)
+  audience    MarketingCampaignAudience
+  subject     String
+  title       String
+  body        String
+  ctaLabel    String?
+  ctaUrl      String?
+  imageUrls   Json?
+  recipients  MarketingCampaignRecipient[]
+  sentAt      DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([audience, createdAt])
+}
+
+model MarketingCampaignRecipient {
+  id          String                   @id @default(uuid()) @db.Uuid
+  campaign    MarketingCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId  String                   @db.Uuid
+  user        User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?                  @db.Uuid
+  email       String
+  status      MarketingRecipientStatus @default(PENDING)
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime                 @default(now())
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+  @@index([email])
+  @@index([userId])
 }
 
 model Address {
