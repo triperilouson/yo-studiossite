@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { OrderFulfillmentStatus, OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   PAYMENT_PROVIDER, type PaymentProvider, type VerifiedPaymentWebhook,
@@ -185,9 +185,12 @@ export class PaymentsService {
         where: { id: payment.id },
         data: { ...commonUpdate, status: PaymentStatus.SUCCEEDED, paidAt: new Date(), failedAt: null },
       });
-      await tx.order.update({ where: { id: payment.orderId }, data: { status: OrderStatus.PAID } });
+      await tx.order.update({
+        where: { id: payment.orderId },
+        data: { status: OrderStatus.PAID, fulfillmentStatus: OrderFulfillmentStatus.REVIEWING },
+      });
       await this.accounting.createForPayment(tx, payment.id);
-      return { ...payment.order, status: OrderStatus.PAID };
+      return { ...payment.order, status: OrderStatus.PAID, fulfillmentStatus: OrderFulfillmentStatus.REVIEWING };
     }
 
     if (status === 'FAILED') {

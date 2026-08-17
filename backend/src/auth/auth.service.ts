@@ -19,7 +19,7 @@ import { AdminMfaService } from './admin-mfa.service';
 import { MailService } from '../mail/mail.service';
 
 interface ClientContext { ip: string; userAgent?: string }
-interface IssuedTokens { accessToken: string; refreshToken: string; expiresIn: string }
+interface IssuedTokens { accessToken: string; refreshToken: string; expiresIn: string; refreshMaxAgeSeconds: number }
 
 const publicUserSelect = {
   id: true,
@@ -175,7 +175,7 @@ export class AuthService {
 
     const secret = randomBytes(32).toString('base64url');
     const refreshTokenHash = await argon2.hash(secret, { type: argon2.argon2id });
-    const expiresAt = this.refreshExpiry();
+    const expiresAt = this.refreshExpiry(session.user.role);
     const next = await this.prisma.$transaction(async (tx) => {
       const created = await tx.authSession.create({
         data: {
@@ -251,7 +251,7 @@ export class AuthService {
       data: {
         userId: user.id,
         refreshTokenHash: await argon2.hash(secret, { type: argon2.argon2id }),
-        expiresAt: this.refreshExpiry(),
+        expiresAt: this.refreshExpiry(user.role),
         userAgent: context.userAgent?.slice(0, 500),
         ipHash: this.hashIp(context.ip),
       },
@@ -273,7 +273,7 @@ export class AuthService {
         expiresIn: expiresIn as JwtSignOptions['expiresIn'],
       },
     );
-    return { accessToken, refreshToken, expiresIn };
+    return { accessToken, refreshToken, expiresIn, refreshMaxAgeSeconds: this.refreshTtlSeconds(user.role) };
   }
 
   private async createOneTimeToken(userId: string, type: AuthTokenType, minutes: number): Promise<string> {
@@ -308,8 +308,15 @@ export class AuthService {
     return { sessionId, secret };
   }
 
-  private refreshExpiry(): Date {
-    return new Date(Date.now() + this.config.get('REFRESH_TOKEN_TTL_DAYS', { infer: true }) * 86_400_000);
+  private refreshExpiry(role: Role): Date {
+    return new Date(Date.now() + this.refreshTtlSeconds(role) * 1000);
+  }
+
+  private refreshTtlSeconds(role: Role): number {
+    if (role === Role.ADMIN || role === Role.SUPER_ADMIN) {
+      return this.config.get('ADMIN_REFRESH_TOKEN_TTL_HOURS', { infer: true }) * 3600;
+    }
+    return this.config.get('REFRESH_TOKEN_TTL_DAYS', { infer: true }) * 86_400;
   }
 
   private hashIp(ip: string): string {

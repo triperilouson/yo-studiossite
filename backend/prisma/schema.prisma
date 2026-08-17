@@ -43,6 +43,14 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum OrderFulfillmentStatus {
+  REVIEWING
+  ACCEPTED
+  READY_FOR_DELIVERY
+  IN_TRANSIT
+  RECEIVED
+}
+
 enum PaymentStatus {
   CREATED
   PENDING
@@ -76,6 +84,17 @@ enum ReceiptRefundStatus {
   FAILED
 }
 
+enum SupportThreadStatus {
+  OPEN
+  WAITING_CUSTOMER
+  CLOSED
+}
+
+enum SupportMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
 enum AuthTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -106,6 +125,35 @@ model User {
   updatedAt           DateTime        @updatedAt
 
   @@index([role, isActive])
+}
+
+model SupportThread {
+  id        String              @id @default(uuid()) @db.Uuid
+  email     String
+  name      String?
+  subject   String
+  status    SupportThreadStatus @default(OPEN)
+  messages  SupportMessage[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([email, createdAt])
+}
+
+model SupportMessage {
+  id                String                  @id @default(uuid()) @db.Uuid
+  thread            SupportThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId          String                  @db.Uuid
+  direction         SupportMessageDirection
+  fromEmail         String
+  toEmail           String?
+  body              String
+  providerMessageId String?
+  createdAt         DateTime                @default(now())
+
+  @@unique([providerMessageId])
+  @@index([threadId, createdAt])
 }
 
 model Address {
@@ -281,6 +329,7 @@ model Order {
   user                   User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   userId                 String          @db.Uuid
   status                 OrderStatus     @default(PENDING_PAYMENT)
+  fulfillmentStatus      OrderFulfillmentStatus @default(REVIEWING)
   emailSnapshot          String
   phoneSnapshot          String
   nameSnapshot           String
@@ -302,6 +351,7 @@ model Order {
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([fulfillmentStatus, createdAt])
 }
 
 model ShippingCountry {

@@ -1,7 +1,7 @@
 import {
   ConflictException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, ProductStatus } from '@prisma/client';
+import { OrderFulfillmentStatus, OrderStatus, Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminAuditService } from '../common/admin-audit.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -9,12 +9,27 @@ import type { CheckoutDto } from './dto/checkout.dto';
 import { MailService } from '../mail/mail.service';
 
 const orderResponseSelect = {
-  id: true, status: true, currency: true, subtotalMinor: true, shippingMinor: true,
+  id: true, status: true, fulfillmentStatus: true, currency: true, subtotalMinor: true, shippingMinor: true,
   totalMinor: true, emailSnapshot: true, nameSnapshot: true, phoneSnapshot: true,
   addressSnapshot: true, shippingMethod: true, shippingCountryCode: true,
   pickupLocationSnapshot: true, createdAt: true, updatedAt: true,
   items: { select: { productIdSnapshot: true, skuSnapshot: true, titleSnapshot: true, sizeSnapshot: true, unitPriceMinor: true, quantity: true } },
 } as const;
+
+const fulfillmentOrder = [
+  OrderFulfillmentStatus.REVIEWING,
+  OrderFulfillmentStatus.ACCEPTED,
+  OrderFulfillmentStatus.READY_FOR_DELIVERY,
+  OrderFulfillmentStatus.IN_TRANSIT,
+  OrderFulfillmentStatus.RECEIVED,
+] as const;
+
+const paidOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.PAID,
+  OrderStatus.SHIPPED,
+  OrderStatus.DELIVERED,
+  OrderStatus.COMPLETED,
+]);
 
 @Injectable()
 export class OrdersService {
@@ -175,6 +190,35 @@ export class OrdersService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await this.audit.record(actorId, 'ORDER_STATUS_UPDATED', 'Order', orderId, { status });
     await this.mail.sendOrderStatus(updated);
+    return updated;
+  }
+
+  async updateFulfillmentForAdmin(actorId: string, orderId: string, fulfillmentStatus: OrderFulfillmentStatus) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (!paidOrderStatuses.has(order.status)) {
+        throw new ConflictException('Order tracking can only be updated after payment is confirmed');
+      }
+      const currentIndex = fulfillmentOrder.indexOf(order.fulfillmentStatus);
+      const nextIndex = fulfillmentOrder.indexOf(fulfillmentStatus);
+      if (nextIndex < currentIndex) {
+        throw new ConflictException(`Invalid fulfillment transition: ${order.fulfillmentStatus} -> ${fulfillmentStatus}`);
+      }
+      const statusUpdate =
+        fulfillmentStatus === OrderFulfillmentStatus.IN_TRANSIT && order.status === OrderStatus.PAID
+          ? { status: OrderStatus.SHIPPED }
+          : fulfillmentStatus === OrderFulfillmentStatus.RECEIVED && order.status !== OrderStatus.COMPLETED
+            ? { status: OrderStatus.COMPLETED }
+            : {};
+      return tx.order.update({
+        where: { id: orderId },
+        data: { fulfillmentStatus, ...statusUpdate },
+        select: orderResponseSelect,
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await this.audit.record(actorId, 'ORDER_FULFILLMENT_UPDATED', 'Order', orderId, { fulfillmentStatus });
+    await this.mail.sendOrderFulfillmentStatus(updated);
     return updated;
   }
 }

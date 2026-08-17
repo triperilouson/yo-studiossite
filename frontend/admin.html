@@ -21,8 +21,9 @@
                 <button class="nav-item" data-view="users" type="button">USERS <span>06</span></button>
                 <button class="nav-item" data-view="security" type="button">SECURITY <span>07</span></button>
                 <button class="nav-item" data-view="accounting" type="button">ACCOUNTING <span>08</span></button>
-                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>09</span></button>
-                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>10</span></a>
+                <button class="nav-item" data-view="support" type="button">SUPPORT <span>09</span></button>
+                <button class="nav-item" data-view="audit" type="button">AUDIT LOG <span>10</span></button>
+                <a id="game-editor-link" class="nav-item hidden" href="game-editor.html">GAME EDITOR <span>11</span></a>
             </nav>
             <div class="admin-presence"><i></i><span>SECURE SESSION</span></div>
         </aside>
@@ -112,6 +113,11 @@
             <section class="admin-view" data-view-panel="audit">
                 <div class="view-toolbar"><div><h2>ADMIN AUDIT TRAIL</h2><p>Recent privileged actions stored in PostgreSQL.</p></div></div>
                 <div id="admin-audit" class="admin-table"></div>
+            </section>
+
+            <section class="admin-view" data-view-panel="support">
+                <div class="view-toolbar"><div><h2>SUPPORT INBOX</h2><p>Customer messages and email replies.</p></div></div>
+                <div id="admin-support" class="support-thread-list"></div>
             </section>
 
             <section class="admin-view" data-view-panel="accounting">

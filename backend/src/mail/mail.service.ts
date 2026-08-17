@@ -1,7 +1,7 @@
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
-import { OrderStatus, type Receipt } from '@prisma/client';
+import { OrderFulfillmentStatus, OrderStatus, type Receipt } from '@prisma/client';
 import type { Environment } from '../config/env';
 
 type OrderMailItem = {
@@ -14,6 +14,7 @@ type OrderMailItem = {
 export type OrderMailSnapshot = {
   id: string;
   status: OrderStatus;
+  fulfillmentStatus: OrderFulfillmentStatus;
   emailSnapshot: string;
   nameSnapshot: string;
   currency: string;
@@ -136,6 +137,34 @@ export class MailService {
     };
     const [title, body] = messages[order.status] ?? ['Order updated', `Order status: ${order.status}`];
     return this.sendOrderMail(order, `YO STUDIOS ${title.toLowerCase()} ${order.id.slice(0, 8)}`, title, body);
+  }
+
+  sendOrderFulfillmentStatus(order: OrderMailSnapshot): Promise<void> {
+    const messages: Record<OrderFulfillmentStatus, [string, string]> = {
+      [OrderFulfillmentStatus.REVIEWING]: ['Order under review', 'Your payment is confirmed. We are reviewing the order before fulfilment.'],
+      [OrderFulfillmentStatus.ACCEPTED]: ['Order accepted', 'Your YO STUDIOS order has been accepted.'],
+      [OrderFulfillmentStatus.READY_FOR_DELIVERY]: ['Order ready for delivery', 'Your order is packed and ready for pickup or delivery handoff.'],
+      [OrderFulfillmentStatus.IN_TRANSIT]: ['Order in transit', 'Your YO STUDIOS order is on the way.'],
+      [OrderFulfillmentStatus.RECEIVED]: ['Order received', 'Your YO STUDIOS order is marked as received.'],
+    };
+    const [title, body] = messages[order.fulfillmentStatus];
+    return this.sendOrderMail(order, `YO STUDIOS ${title.toLowerCase()} ${order.id.slice(0, 8)}`, title, body);
+  }
+
+  sendSupportReply(to: string, subject: string, body: string): Promise<void> {
+    return this.send({
+      to,
+      subject: `YO STUDIOS support: ${subject}`,
+      text: [
+        body,
+        '',
+        'YO STUDIOS support',
+      ].join('\n'),
+      html: this.layout('Support reply', `
+        <p>${this.escape(body).replaceAll('\n', '<br>')}</p>
+        <p class="muted">Reply to this email to continue the conversation.</p>
+      `),
+    });
   }
 
   private async sendOrderMail(order: OrderMailSnapshot, subject: string, title: string, body: string): Promise<void> {

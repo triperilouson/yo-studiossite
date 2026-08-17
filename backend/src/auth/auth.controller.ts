@@ -65,7 +65,7 @@ export class AuthController {
   async login(@Body() input: LoginDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) reply: CookieReply) {
     const result = await this.auth.login(input, this.context(req));
     if ('mfaRequired' in result) return result;
-    this.setRefreshCookie(reply, result.refreshToken);
+    this.setRefreshCookie(reply, result.refreshToken, result.refreshMaxAgeSeconds);
     return { user: result.user, accessToken: result.accessToken, expiresIn: result.expiresIn };
   }
 
@@ -75,7 +75,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async completeAdminMfa(@Body() input: CompleteAdminMfaDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) reply: CookieReply) {
     const result = await this.auth.completeAdminMfa(input.challengeToken, input.code, this.context(req));
-    this.setRefreshCookie(reply, result.refreshToken);
+    this.setRefreshCookie(reply, result.refreshToken, result.refreshMaxAgeSeconds);
     return { user: result.user, accessToken: result.accessToken, expiresIn: result.expiresIn };
   }
 
@@ -86,7 +86,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Rotate refresh token and issue an access token' })
   async refresh(@Req() req: CookieRequest, @Res({ passthrough: true }) reply: CookieReply) {
     const result = await this.auth.refresh(req.cookies[REFRESH_COOKIE], this.context(req));
-    this.setRefreshCookie(reply, result.refreshToken);
+    this.setRefreshCookie(reply, result.refreshToken, result.refreshMaxAgeSeconds);
     return { accessToken: result.accessToken, expiresIn: result.expiresIn };
   }
 
@@ -126,10 +126,10 @@ export class AuthController {
     await this.auth.verifyEmail(input.token);
   }
 
-  private setRefreshCookie(reply: CookieReply, token: string): void {
+  private setRefreshCookie(reply: CookieReply, token: string, maxAge: number): void {
     reply.setCookie(REFRESH_COOKIE, token, {
       ...this.cookieOptions(),
-      maxAge: this.config.get('REFRESH_TOKEN_TTL_DAYS', { infer: true }) * 86_400,
+      maxAge,
     });
   }
 

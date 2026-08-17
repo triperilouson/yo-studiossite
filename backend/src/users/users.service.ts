@@ -67,7 +67,7 @@ export class UsersService {
     return this.prisma.order.findMany({
       where: { userId },
       select: {
-        id: true, status: true, currency: true, subtotalMinor: true, shippingMinor: true,
+        id: true, status: true, fulfillmentStatus: true, currency: true, subtotalMinor: true, shippingMinor: true,
         totalMinor: true, shippingMethod: true, shippingCountryCode: true,
         pickupLocationSnapshot: true, createdAt: true, updatedAt: true,
         items: { select: { productIdSnapshot: true, skuSnapshot: true, titleSnapshot: true, sizeSnapshot: true, unitPriceMinor: true, quantity: true } },

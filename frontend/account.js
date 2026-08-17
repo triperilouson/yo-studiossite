@@ -79,8 +79,29 @@ function orderCard(order) {
     const items = document.createElement("p");
     items.textContent = order.items.map((item) => `${item.titleSnapshot} / ${item.sizeSnapshot} x ${item.quantity}`).join(" / ");
 
-    card.append(title, total, items);
+    card.append(title, total, items, orderTimeline(order.fulfillmentStatus || "REVIEWING", order.status));
     return card;
+}
+
+function orderTimeline(current, orderStatus) {
+    const steps = [
+        ["REVIEWING", "REVIEWING"],
+        ["ACCEPTED", "ACCEPTED"],
+        ["READY_FOR_DELIVERY", "READY"],
+        ["IN_TRANSIT", "IN TRANSIT"],
+        ["RECEIVED", "RECEIVED"]
+    ];
+    const disabled = ["PENDING_PAYMENT", "FAILED", "CANCELLED", "REFUNDED"].includes(orderStatus);
+    const currentIndex = Math.max(0, steps.findIndex(([value]) => value === current));
+    const timeline = document.createElement("ol");
+    timeline.className = "order-timeline";
+    steps.forEach(([value, label], index) => {
+        const item = document.createElement("li");
+        item.className = disabled ? "" : index < currentIndex ? "done" : index === currentIndex ? "current" : "";
+        item.textContent = label;
+        timeline.appendChild(item);
+    });
+    return timeline;
 }
 
 async function loadOrders() {

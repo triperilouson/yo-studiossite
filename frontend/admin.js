@@ -38,6 +38,7 @@ function switchView(name) {
     if (name === "audit") void loadAudit();
     if (name === "security") void loadOverview();
     if (name === "accounting") void loadAccounting();
+    if (name === "support") void loadSupport();
 }
 
 document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
@@ -155,6 +156,7 @@ async function loadProducts() {
 
 function tableRow(columns) {
     const row = node("article", "table-row");
+    if (columns.length === 5) row.style.gridTemplateColumns = "1.2fr 1.2fr .8fr 1.3fr auto";
     columns.forEach((column) => row.append(column));
     return row;
 }
@@ -163,6 +165,7 @@ async function loadOrders() {
     try {
         const orders = await YOApi.request("/admin/orders", { auth: true });
         const next = { PENDING_PAYMENT: "CANCELLED", PAID: "SHIPPED", SHIPPED: "COMPLETED" };
+        const fulfillmentSteps = ["REVIEWING", "ACCEPTED", "READY_FOR_DELIVERY", "IN_TRANSIT", "RECEIVED"];
         document.getElementById("admin-orders").replaceChildren(...orders.map((order) => {
             const action = next[order.status]
                 ? button(`MARK ${next[order.status].replaceAll("_", " ")}`, async () => {
@@ -171,10 +174,28 @@ async function loadOrders() {
                         setStatus("Order status updated"); await Promise.all([loadOrders(), loadOverview()]);
                     } catch (error) { setStatus(error.message, true); }
                 }) : node("span", "", "—");
+            const fulfillment = document.createElement("select");
+            fulfillmentSteps.forEach((value) => fulfillment.add(new Option(value.replaceAll("_", " "), value, value === order.fulfillmentStatus, value === order.fulfillmentStatus)));
+            fulfillment.disabled = !["PAID", "SHIPPED", "DELIVERED", "COMPLETED"].includes(order.status);
+            const saveFulfillment = button("SAVE TRACKING", async () => {
+                try {
+                    await YOApi.request(`/admin/orders/${order.id}/fulfillment`, {
+                        method: "PATCH",
+                        auth: true,
+                        body: { fulfillmentStatus: fulfillment.value }
+                    });
+                    setStatus("Order tracking updated"); await Promise.all([loadOrders(), loadOverview()]);
+                } catch (error) { setStatus(error.message, true); }
+            });
+            saveFulfillment.disabled = fulfillment.disabled;
+            const fulfillmentCell = node("div", "row-actions");
+            fulfillmentCell.append(fulfillment, saveFulfillment);
             return tableRow([
                 node("strong", "", `${order.id.slice(0, 8).toUpperCase()} · ${order.items.length} ITEMS`),
-                node("span", "", order.status.replaceAll("_", " ")),
-                node("span", "", YOApi.formatMoney(order.totalMinor, order.currency)), action
+                node("span", "", `${order.status.replaceAll("_", " ")} / ${order.fulfillmentStatus.replaceAll("_", " ")}`),
+                node("span", "", YOApi.formatMoney(order.totalMinor, order.currency)),
+                fulfillmentCell,
+                action
             ]);
         }));
     } catch (error) { setStatus(error.message, true); }
@@ -567,6 +588,44 @@ function renderPickup(location) {
     });
     const status = node("label", "inline-check", "ACTIVE "); status.appendChild(active);
     return tableRow([node("strong", "", location.name), node("span", "", `${location.city} · ${location.address}`), status, action]);
+}
+
+async function loadSupport() {
+    try {
+        const threads = await YOApi.request("/admin/support/threads", { auth: true });
+        const container = document.getElementById("admin-support");
+        container.replaceChildren(...threads.map((thread) => {
+            const card = node("article", "support-thread");
+            const heading = node("div", "panel-heading");
+            heading.append(
+                node("h2", "", `${thread.subject} · ${thread.email}`),
+                node("span", "", thread.status.replaceAll("_", " "))
+            );
+            const messages = node("div", "support-messages");
+            thread.messages.forEach((message) => {
+                const item = node("p", message.direction.toLowerCase(), `${message.direction}: ${message.body}`);
+                messages.appendChild(item);
+            });
+            const textarea = document.createElement("textarea");
+            textarea.placeholder = "TYPE REPLY";
+            textarea.maxLength = 5000;
+            const send = button("SEND REPLY", async () => {
+                try {
+                    if (!textarea.value.trim()) return;
+                    await YOApi.request(`/admin/support/threads/${thread.id}/reply`, {
+                        method: "POST",
+                        auth: true,
+                        body: { message: textarea.value.trim() }
+                    });
+                    setStatus("Support reply sent");
+                    await loadSupport();
+                } catch (error) { setStatus(error.message, true); }
+            }, "secondary-action");
+            card.append(heading, messages, textarea, send);
+            return card;
+        }));
+        if (!threads.length) container.textContent = "NO SUPPORT THREADS";
+    } catch (error) { setStatus(error.message, true); }
 }
 
 async function loadShipping() {
