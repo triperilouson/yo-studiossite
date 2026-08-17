@@ -89,6 +89,7 @@ function orderTimeline(current, orderStatus) {
         ["ACCEPTED", "ACCEPTED"],
         ["READY_FOR_DELIVERY", "READY"],
         ["IN_TRANSIT", "IN TRANSIT"],
+        ["DELIVERED", "DELIVERED"],
         ["RECEIVED", "RECEIVED"]
     ];
     const disabled = ["PENDING_PAYMENT", "FAILED", "CANCELLED", "REFUNDED"].includes(orderStatus);

@@ -29,6 +29,7 @@ type MailMessage = {
   subject: string;
   text: string;
   html: string;
+  headers?: Record<string, string>;
 };
 
 @Injectable()
@@ -145,16 +146,18 @@ export class MailService {
       [OrderFulfillmentStatus.ACCEPTED]: ['Order accepted', 'Your YO STUDIOS order has been accepted.'],
       [OrderFulfillmentStatus.READY_FOR_DELIVERY]: ['Order ready for delivery', 'Your order is packed and ready for pickup or delivery handoff.'],
       [OrderFulfillmentStatus.IN_TRANSIT]: ['Order in transit', 'Your YO STUDIOS order is on the way.'],
+      [OrderFulfillmentStatus.DELIVERED]: ['Order delivered', 'Your YO STUDIOS order is marked as delivered.'],
       [OrderFulfillmentStatus.RECEIVED]: ['Order received', 'Your YO STUDIOS order is marked as received.'],
     };
     const [title, body] = messages[order.fulfillmentStatus];
     return this.sendOrderMail(order, `YO STUDIOS ${title.toLowerCase()} ${order.id.slice(0, 8)}`, title, body);
   }
 
-  sendSupportReply(to: string, subject: string, body: string): Promise<void> {
-    return this.send({
+  sendSupportReply(to: string, subject: string, body: string, messageId: string): Promise<void> {
+    return this.sendRaw({
       to,
       subject: `YO STUDIOS support: ${subject}`,
+      headers: { 'Message-ID': messageId },
       text: [
         body,
         '',
@@ -164,6 +167,7 @@ export class MailService {
         <p>${this.escape(body).replaceAll('\n', '<br>')}</p>
         <p class="muted">Reply to this email to continue the conversation.</p>
       `),
+      attachments: [],
     });
   }
 
@@ -253,6 +257,7 @@ export class MailService {
         `From: ${this.mimeHeader(fromName)} <${from}>`,
         `To: ${message.to}`,
         `Subject: ${this.mimeHeader(message.subject)}`,
+        ...Object.entries(message.headers ?? {}).map(([key, value]) => `${key}: ${value}`),
         'MIME-Version: 1.0',
         replyTo ? `Reply-To: ${replyTo}` : '',
         `Content-Type: multipart/mixed; boundary="${boundary}"`,

@@ -48,6 +48,7 @@ enum OrderFulfillmentStatus {
   ACCEPTED
   READY_FOR_DELIVERY
   IN_TRANSIT
+  DELIVERED
   RECEIVED
 }
 
@@ -149,11 +150,17 @@ model SupportMessage {
   fromEmail         String
   toEmail           String?
   body              String
+  provider          String?
   providerMessageId String?
+  messageId         String?
+  inReplyTo         String?
+  references        String?
   createdAt         DateTime                @default(now())
 
   @@unique([providerMessageId])
+  @@unique([messageId])
   @@index([threadId, createdAt])
+  @@index([inReplyTo])
 }
 
 model Address {

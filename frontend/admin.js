@@ -165,7 +165,7 @@ async function loadOrders() {
     try {
         const orders = await YOApi.request("/admin/orders", { auth: true });
         const next = { PENDING_PAYMENT: "CANCELLED", PAID: "SHIPPED", SHIPPED: "COMPLETED" };
-        const fulfillmentSteps = ["REVIEWING", "ACCEPTED", "READY_FOR_DELIVERY", "IN_TRANSIT", "RECEIVED"];
+        const fulfillmentSteps = ["REVIEWING", "ACCEPTED", "READY_FOR_DELIVERY", "IN_TRANSIT", "DELIVERED", "RECEIVED"];
         document.getElementById("admin-orders").replaceChildren(...orders.map((order) => {
             const action = next[order.status]
                 ? button(`MARK ${next[order.status].replaceAll("_", " ")}`, async () => {

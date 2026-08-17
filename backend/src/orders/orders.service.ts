@@ -21,6 +21,7 @@ const fulfillmentOrder = [
   OrderFulfillmentStatus.ACCEPTED,
   OrderFulfillmentStatus.READY_FOR_DELIVERY,
   OrderFulfillmentStatus.IN_TRANSIT,
+  OrderFulfillmentStatus.DELIVERED,
   OrderFulfillmentStatus.RECEIVED,
 ] as const;
 
@@ -208,7 +209,8 @@ export class OrdersService {
       const statusUpdate =
         fulfillmentStatus === OrderFulfillmentStatus.IN_TRANSIT && order.status === OrderStatus.PAID
           ? { status: OrderStatus.SHIPPED }
-          : fulfillmentStatus === OrderFulfillmentStatus.RECEIVED && order.status !== OrderStatus.COMPLETED
+          : (fulfillmentStatus === OrderFulfillmentStatus.DELIVERED || fulfillmentStatus === OrderFulfillmentStatus.RECEIVED) &&
+              order.status !== OrderStatus.COMPLETED
             ? { status: OrderStatus.COMPLETED }
             : {};
       return tx.order.update({
