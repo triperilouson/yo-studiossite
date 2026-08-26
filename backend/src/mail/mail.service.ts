@@ -1,6 +1,7 @@
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
+import { createTransport, type Transporter } from 'nodemailer';
 import { OrderFulfillmentStatus, OrderStatus, type Receipt } from '@prisma/client';
 import type { Environment } from '../config/env';
 
@@ -48,6 +49,7 @@ type MailChannel = 'orders' | 'support' | 'marketing' | 'system';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private ses?: SESv2Client;
+  private smtp?: Transporter;
 
   constructor(private readonly config: ConfigService<Environment, true>) {}
 
@@ -258,6 +260,18 @@ export class MailService {
       const from = this.fromAddress(message.channel);
       const fromName = this.config.get('SES_FROM_NAME', { infer: true });
       const replyTo = this.replyToAddress(message.channel);
+      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'smtp') {
+        await this.getSmtpTransporter().sendMail({
+          from: this.formatAddress(fromName, from),
+          to: message.to,
+          replyTo: replyTo || undefined,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+          headers: message.headers,
+        });
+        return;
+      }
       const configurationSetName = this.config.get('SES_CONFIGURATION_SET', { infer: true });
       const client = this.getSesClient();
       await client.send(new SendEmailCommand({
@@ -292,6 +306,23 @@ export class MailService {
       const from = this.fromAddress(message.channel);
       const fromName = this.config.get('SES_FROM_NAME', { infer: true });
       const replyTo = this.replyToAddress(message.channel);
+      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'smtp') {
+        await this.getSmtpTransporter().sendMail({
+          from: this.formatAddress(fromName, from),
+          to: message.to,
+          replyTo: replyTo || undefined,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+          headers: message.headers,
+          attachments: message.attachments.map((attachment) => ({
+            filename: attachment.filename,
+            contentType: attachment.contentType,
+            content: attachment.content,
+          })),
+        });
+        return;
+      }
       const configurationSetName = this.config.get('SES_CONFIGURATION_SET', { infer: true });
       const boundary = `yo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
       const related = [
@@ -350,6 +381,20 @@ export class MailService {
     return this.ses;
   }
 
+  private getSmtpTransporter(): Transporter {
+    if (!this.smtp) {
+      const user = this.config.get('SMTP_USER', { infer: true });
+      const pass = this.config.get('SMTP_PASS', { infer: true });
+      this.smtp = createTransport({
+        host: this.config.get('SMTP_HOST', { infer: true }),
+        port: this.config.get('SMTP_PORT', { infer: true }),
+        secure: this.config.get('SMTP_SECURE', { infer: true }) === 'true',
+        auth: user && pass ? { user, pass } : undefined,
+      });
+    }
+    return this.smtp;
+  }
+
   private fromAddress(channel: MailChannel = 'system'): string {
     const fallback = this.config.get('SES_FROM_EMAIL', { infer: true });
     const keys: Record<MailChannel, 'SES_FROM_ORDERS' | 'SES_FROM_SUPPORT' | 'SES_FROM_MARKETING' | 'SES_FROM_SYSTEM'> = {
@@ -366,6 +411,10 @@ export class MailService {
       return this.config.get('SES_FROM_SUPPORT', { infer: true }) || this.config.get('SES_REPLY_TO', { infer: true });
     }
     return this.config.get('SES_REPLY_TO', { infer: true });
+  }
+
+  private formatAddress(name: string, email: string): string {
+    return `"${name.replaceAll('"', '\\"')}" <${email}>`;
   }
 
   private frontendLink(path: string): string {

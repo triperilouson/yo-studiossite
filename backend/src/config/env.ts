@@ -23,8 +23,13 @@ const envSchema = z.object({
   BUSINESS_NAME: z.string().min(1).max(160).default('YO STUDIOS'),
   BUSINESS_TAX_ID: z.string().optional().or(z.literal('')),
   BUSINESS_ADDRESS: z.string().optional().or(z.literal('')),
-  MAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
+  MAIL_PROVIDER: z.enum(['console', 'ses', 'smtp']).default('console'),
   MAIL_STRICT_DELIVERY: z.enum(['true', 'false']).default('false'),
+  SMTP_HOST: z.string().optional().or(z.literal('')),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_USER: z.string().optional().or(z.literal('')),
+  SMTP_PASS: z.string().optional().or(z.literal('')),
   SES_REGION: z.string().optional().or(z.literal('')),
   SES_FROM_EMAIL: z.string().email().optional().or(z.literal('')),
   SES_FROM_ORDERS: z.string().email().optional().or(z.literal('')),
@@ -53,6 +58,14 @@ const envSchema = z.object({
     }
     if (!value.SES_FROM_EMAIL) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+    }
+  }
+  if (value.MAIL_PROVIDER === 'smtp') {
+    if (!value.SMTP_HOST) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SMTP_HOST'], message: 'SMTP_HOST is required when MAIL_PROVIDER=smtp' });
+    }
+    if (!value.SES_FROM_EMAIL) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=smtp' });
     }
   }
   if (value.NODE_ENV === 'production') {
