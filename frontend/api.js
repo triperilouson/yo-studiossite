@@ -10,6 +10,40 @@
     let currentUser = null;
     let refreshPromise = null;
 
+    function installHomeButton() {
+        if (document.querySelector(".yo-home-orb")) return;
+        const path = window.location.pathname.replace(/\\/g, "/");
+        if (/\/(?:index\.html)?$/i.test(path)) return;
+
+        const style = document.createElement("style");
+        style.textContent = `
+            .yo-home-orb{position:fixed;left:18px;bottom:18px;z-index:9000;width:54px;height:54px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.36);backdrop-filter:blur(14px);opacity:.68;transition:opacity .25s ease,transform .25s ease,border-color .25s ease}
+            .yo-home-orb:hover{opacity:1;transform:translateY(-2px);border-color:rgba(255,255,255,.46)}
+            .yo-home-orb img{width:30px;height:30px;object-fit:contain;filter:invert(1)}
+            .yo-home-orb span{color:#fff;font:800 18px/1 Arial,Helvetica,sans-serif;letter-spacing:-1px}
+            @media(max-width:640px){.yo-home-orb{left:12px;bottom:12px;width:46px;height:46px}.yo-home-orb img{width:25px;height:25px}}
+        `;
+        document.head.append(style);
+
+        const link = document.createElement("a");
+        link.className = "yo-home-orb";
+        link.href = "index.html";
+        link.setAttribute("aria-label", "Back to home");
+
+        const image = document.createElement("img");
+        image.src = "logo.png";
+        image.alt = "";
+        image.decoding = "async";
+        image.addEventListener("error", () => {
+            link.replaceChildren(Object.assign(document.createElement("span"), { textContent: "YO" }));
+        }, { once: true });
+        link.append(image);
+        document.body.append(link);
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", installHomeButton);
+    else installHomeButton();
+
     class ApiError extends Error {
         constructor(status, message, details) {
             super(message);

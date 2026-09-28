@@ -353,6 +353,76 @@ function readFileAsDataUrl(file) {
     });
 }
 
+function imageElementFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Could not read image"));
+        };
+        image.src = url;
+    });
+}
+
+function fittedImageName(fileName) {
+    return `${fileName.replace(/\.[a-z0-9]+$/i, "") || "image"}-fitted.webp`;
+}
+
+function imagePresetSize(row, containerId) {
+    const fit = row.querySelector("[data-image-fit]")?.value || (containerId === "season-image-rows" ? "season" : "product");
+    const sizeInput = row.querySelector("[data-image-size]");
+    const size = Math.min(2400, Math.max(320, Number(sizeInput?.value || 1400)));
+    if (sizeInput) sizeInput.value = String(size);
+    if (fit === "season") return { fit, width: size, height: Math.round(size * 9 / 16) };
+    if (fit === "square") return { fit, width: size, height: size };
+    return { fit, width: size, height: Math.round(size * 5 / 4) };
+}
+
+async function imageForUpload(file, row, containerId) {
+    const fit = row.querySelector("[data-image-fit]")?.value || "product";
+    if (fit === "original" || file.type === "image/gif") {
+        return { imageBase64: await readFileAsDataUrl(file), fileName: file.name, label: "ORIGINAL" };
+    }
+
+    const image = await imageElementFromFile(file);
+    const preset = imagePresetSize(row, containerId);
+    const canvas = document.createElement("canvas");
+    canvas.width = preset.width;
+    canvas.height = preset.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image canvas is unavailable");
+
+    const sourceRatio = image.naturalWidth / image.naturalHeight;
+    const targetRatio = preset.width / preset.height;
+    let sourceWidth = image.naturalWidth;
+    let sourceHeight = image.naturalHeight;
+    let sourceX = 0;
+    let sourceY = 0;
+    if (sourceRatio > targetRatio) {
+        sourceWidth = Math.round(image.naturalHeight * targetRatio);
+        sourceX = Math.round((image.naturalWidth - sourceWidth) / 2);
+    } else if (sourceRatio < targetRatio) {
+        sourceHeight = Math.round(image.naturalWidth / targetRatio);
+        sourceY = Math.round((image.naturalHeight - sourceHeight) / 2);
+    }
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.clearRect(0, 0, preset.width, preset.height);
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, preset.width, preset.height);
+
+    return {
+        imageBase64: canvas.toDataURL("image/webp", 0.9),
+        fileName: fittedImageName(file.name),
+        label: `${preset.fit.toUpperCase()} ${preset.width}×${preset.height}`
+    };
+}
+
 function addImageRow(values = {}, containerId = "gallery-image-rows", removable = true) {
     const row = document.getElementById("image-row-template").content.firstElementChild.cloneNode(true);
     const url = row.querySelector("[data-image-url]");
@@ -360,6 +430,10 @@ function addImageRow(values = {}, containerId = "gallery-image-rows", removable 
     const preview = row.querySelector(".image-preview");
     const upload = row.querySelector(".upload-row");
     const fileInput = row.querySelector("[data-image-file]");
+    const fit = row.querySelector("[data-image-fit]");
+    const size = row.querySelector("[data-image-size]");
+    if (fit) fit.value = containerId === "season-image-rows" ? "season" : "product";
+    if (size) size.value = containerId === "season-image-rows" ? "1800" : "1400";
     url.value = values.url || ""; alt.value = values.alt || "";
     const updatePreview = () => {
         const value = url.value.trim();
@@ -372,17 +446,21 @@ function addImageRow(values = {}, containerId = "gallery-image-rows", removable 
         const file = fileInput.files[0];
         if (!file) return;
         if (!/^image\/(?:png|jpe?g|webp|gif)$/.test(file.type)) { setStatus("Unsupported image type", true); return; }
-        if (file.size > 8_000_000) { setStatus("Image limit is 8 MB", true); return; }
+        if (file.size > 24_000_000) { setStatus("Source image limit is 24 MB", true); return; }
+        if ((row.querySelector("[data-image-fit]")?.value || "") === "original" && file.size > 8_000_000) {
+            setStatus("Original image limit is 8 MB. Choose a fitted mode to resize it.", true);
+            return;
+        }
         const target = imageUploadTarget(containerId);
         if (!target) { setStatus("Fill slug before upload", true); return; }
         upload.disabled = true;
         try {
-            const imageBase64 = await readFileAsDataUrl(file);
-            const result = await YOApi.uploadImage({ ...target, fileName: file.name, imageBase64 });
+            const fitted = await imageForUpload(file, row, containerId);
+            const result = await YOApi.uploadImage({ ...target, fileName: fitted.fileName, imageBase64: fitted.imageBase64 });
             url.value = result.url;
             if (!alt.value.trim()) alt.value = file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").toUpperCase();
             updatePreview();
-            setStatus("Image uploaded");
+            setStatus(`Image uploaded · ${fitted.label}`);
         } catch (error) { setStatus(error.message, true); }
         finally {
             upload.disabled = false;
