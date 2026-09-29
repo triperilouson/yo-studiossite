@@ -129,18 +129,28 @@ The backend has a mail provider abstraction for account verification, password r
 payment receipts and fulfillment status updates.
 
 Local development defaults to `MAIL_PROVIDER=console`, which writes email contents to backend logs.
-Production should use Amazon SES with rotated credentials or, preferably, an AWS runtime role:
+Production can use Zoho CPaaS/ZeptoMail through its REST API, or any transactional SMTP provider.
+For Zoho, create a verified sending domain, publish the provider's SPF/DKIM/DMARC DNS records,
+create an Agent, then copy the Agent API key from the SMTP/API tab:
 
 ```env
 FRONTEND_URL=https://yo-studios.com
-MAIL_PROVIDER=ses
-SES_REGION=eu-central-1
-SES_FROM_EMAIL=orders@yo-studios.com
-SES_FROM_NAME=YO STUDIOS
-SES_REPLY_TO=support@yo-studios.com
-SES_CONFIGURATION_SET=yo-studios-transactional
+MAIL_PROVIDER=zoho_api
+MAIL_FROM_EMAIL=orders@mail.yo-studios.com
+MAIL_FROM_ORDERS=orders@mail.yo-studios.com
+MAIL_FROM_SUPPORT=support@mail.yo-studios.com
+MAIL_FROM_SYSTEM=noreply@mail.yo-studios.com
+MAIL_FROM_NAME=YO STUDIOS
+MAIL_REPLY_TO=support@mail.yo-studios.com
+ZOHO_CP_API_HOST=cpaas.zoho.com
+ZOHO_CP_AGENT_ALIAS=replace_with_agent_alias
+ZOHO_CP_API_KEY=replace_with_agent_api_key
 ```
 
+Generic SMTP is also supported with `MAIL_PROVIDER=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`,
+`SMTP_USER`, and `SMTP_PASS`.
+Amazon SES remains supported with `MAIL_PROVIDER=ses`, `SES_REGION`, and the same `MAIL_FROM_*`
+sender variables above. Legacy `SES_FROM_*` variables still work as fallbacks during migration.
 Do not commit AWS keys. If keys are needed outside AWS hosting, provide them only through the runtime
 environment or a secrets manager as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The IAM principal
 should be least-privilege and limited to `ses:SendEmail` / `ses:SendRawEmail` for the verified identity.

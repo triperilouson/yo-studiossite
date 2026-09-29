@@ -44,6 +44,8 @@ type MailMessage = {
 };
 
 type MailChannel = 'orders' | 'support' | 'marketing' | 'system';
+type MailAttachment = { filename: string; contentType: string; content: Buffer };
+type MailProvider = Environment['MAIL_PROVIDER'];
 
 @Injectable()
 export class MailService {
@@ -253,14 +255,19 @@ export class MailService {
 
   private async send(message: MailMessage): Promise<void> {
     try {
-      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'console') {
+      const provider = this.mailProvider();
+      if (provider === 'console') {
         this.logger.log(`[console-mail] ${message.subject} -> ${message.to}\n${message.text}`);
         return;
       }
       const from = this.fromAddress(message.channel);
-      const fromName = this.config.get('SES_FROM_NAME', { infer: true });
+      const fromName = this.fromName();
       const replyTo = this.replyToAddress(message.channel);
-      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'smtp') {
+      if (provider === 'zoho_api') {
+        await this.sendZohoApi(message, from, fromName, replyTo);
+        return;
+      }
+      if (provider === 'smtp') {
         await this.getSmtpTransporter().sendMail({
           from: this.formatAddress(fromName, from),
           to: message.to,
@@ -297,16 +304,21 @@ export class MailService {
     }
   }
 
-  private async sendRaw(message: MailMessage & { attachments: Array<{ filename: string; contentType: string; content: Buffer }> }): Promise<void> {
+  private async sendRaw(message: MailMessage & { attachments: MailAttachment[] }): Promise<void> {
     try {
-      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'console') {
+      const provider = this.mailProvider();
+      if (provider === 'console') {
         this.logger.log(`[console-mail] ${message.subject} -> ${message.to}\n${message.text}\n[attachments] ${message.attachments.map((item) => item.filename).join(', ')}`);
         return;
       }
       const from = this.fromAddress(message.channel);
-      const fromName = this.config.get('SES_FROM_NAME', { infer: true });
+      const fromName = this.fromName();
       const replyTo = this.replyToAddress(message.channel);
-      if (this.config.get('MAIL_PROVIDER', { infer: true }) === 'smtp') {
+      if (provider === 'zoho_api') {
+        await this.sendZohoApi(message, from, fromName, replyTo, message.attachments);
+        return;
+      }
+      if (provider === 'smtp') {
         await this.getSmtpTransporter().sendMail({
           from: this.formatAddress(fromName, from),
           to: message.to,
@@ -395,22 +407,95 @@ export class MailService {
     return this.smtp;
   }
 
-  private fromAddress(channel: MailChannel = 'system'): string {
-    const fallback = this.config.get('SES_FROM_EMAIL', { infer: true });
-    const keys: Record<MailChannel, 'SES_FROM_ORDERS' | 'SES_FROM_SUPPORT' | 'SES_FROM_MARKETING' | 'SES_FROM_SYSTEM'> = {
-      orders: 'SES_FROM_ORDERS',
-      support: 'SES_FROM_SUPPORT',
-      marketing: 'SES_FROM_MARKETING',
-      system: 'SES_FROM_SYSTEM',
+  private async sendZohoApi(
+    message: MailMessage,
+    from: string,
+    fromName: string,
+    replyTo?: string,
+    attachments: MailAttachment[] = [],
+  ): Promise<void> {
+    const url = `${this.zohoApiBaseUrl()}/v1.1/email`;
+    const body: Record<string, unknown> = {
+      from: { address: from, name: fromName },
+      to: [{ email_address: { address: message.to } }],
+      subject: message.subject,
+      textbody: message.text,
+      htmlbody: message.html,
+      track_opens: false,
+      track_clicks: false,
     };
-    return this.config.get(keys[channel], { infer: true }) || fallback || 'noreply@yo-studios.com';
+
+    if (replyTo) {
+      body.reply_to = [{ address: replyTo, name: fromName }];
+    }
+    if (message.headers && Object.keys(message.headers).length > 0) {
+      body.mime_headers = message.headers;
+    }
+    if (attachments.length > 0) {
+      body.attachments = attachments.map((attachment) => ({
+        name: attachment.filename,
+        mime_type: attachment.contentType,
+        content: attachment.content.toString('base64'),
+      }));
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Zoho-enczapikey ${this.config.get('ZOHO_CP_API_KEY', { infer: true })}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+      throw new Error(`Zoho CPaaS email API failed with HTTP ${response.status}: ${responseBody.slice(0, 1000)}`);
+    }
   }
 
-  private replyToAddress(channel: MailChannel = 'system'): string {
+  private zohoApiBaseUrl(): string {
+    const rawHost = this.config.get('ZOHO_CP_API_HOST', { infer: true }).trim().replace(/\/+$/, '');
+    return rawHost.startsWith('http://') || rawHost.startsWith('https://')
+      ? rawHost
+      : `https://${rawHost}`;
+  }
+
+  private fromAddress(channel: MailChannel = 'system'): string {
+    const fallback = this.config.get('MAIL_FROM_EMAIL', { infer: true }) ||
+      this.config.get('SES_FROM_EMAIL', { infer: true });
+    const keys: Record<MailChannel, ['MAIL_FROM_ORDERS' | 'MAIL_FROM_SUPPORT' | 'MAIL_FROM_MARKETING' | 'MAIL_FROM_SYSTEM', 'SES_FROM_ORDERS' | 'SES_FROM_SUPPORT' | 'SES_FROM_MARKETING' | 'SES_FROM_SYSTEM']> = {
+      orders: ['MAIL_FROM_ORDERS', 'SES_FROM_ORDERS'],
+      support: ['MAIL_FROM_SUPPORT', 'SES_FROM_SUPPORT'],
+      marketing: ['MAIL_FROM_MARKETING', 'SES_FROM_MARKETING'],
+      system: ['MAIL_FROM_SYSTEM', 'SES_FROM_SYSTEM'],
+    };
+    const [mailKey, sesKey] = keys[channel];
+    return this.config.get(mailKey, { infer: true }) ||
+      this.config.get(sesKey, { infer: true }) ||
+      fallback ||
+      'noreply@yo-studios.com';
+  }
+
+  private replyToAddress(channel: MailChannel = 'system'): string | undefined {
+    const fallback = this.config.get('MAIL_REPLY_TO', { infer: true }) ||
+      this.config.get('SES_REPLY_TO', { infer: true });
     if (channel === 'support') {
-      return this.config.get('SES_FROM_SUPPORT', { infer: true }) || this.config.get('SES_REPLY_TO', { infer: true });
+      return this.config.get('MAIL_FROM_SUPPORT', { infer: true }) ||
+        this.config.get('SES_FROM_SUPPORT', { infer: true }) ||
+        fallback;
     }
-    return this.config.get('SES_REPLY_TO', { infer: true });
+    return fallback;
+  }
+
+  private fromName(): string {
+    return this.config.get('MAIL_FROM_NAME', { infer: true }) ||
+      this.config.get('SES_FROM_NAME', { infer: true });
+  }
+
+  private mailProvider(): MailProvider {
+    return this.config.get('MAIL_PROVIDER', { infer: true });
   }
 
   private formatAddress(name: string, email: string): string {

@@ -23,13 +23,23 @@ const envSchema = z.object({
   BUSINESS_NAME: z.string().min(1).max(160).default('YO STUDIOS'),
   BUSINESS_TAX_ID: z.string().optional().or(z.literal('')),
   BUSINESS_ADDRESS: z.string().optional().or(z.literal('')),
-  MAIL_PROVIDER: z.enum(['console', 'ses', 'smtp']).default('console'),
+  MAIL_PROVIDER: z.enum(['console', 'ses', 'smtp', 'zoho_api']).default('console'),
   MAIL_STRICT_DELIVERY: z.enum(['true', 'false']).default('false'),
+  MAIL_FROM_EMAIL: z.string().email().optional().or(z.literal('')),
+  MAIL_FROM_ORDERS: z.string().email().optional().or(z.literal('')),
+  MAIL_FROM_SUPPORT: z.string().email().optional().or(z.literal('')),
+  MAIL_FROM_MARKETING: z.string().email().optional().or(z.literal('')),
+  MAIL_FROM_SYSTEM: z.string().email().optional().or(z.literal('')),
+  MAIL_FROM_NAME: z.string().min(1).max(80).default('YO STUDIOS'),
+  MAIL_REPLY_TO: z.string().email().optional().or(z.literal('')),
   SMTP_HOST: z.string().optional().or(z.literal('')),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_SECURE: z.enum(['true', 'false']).default('false'),
   SMTP_USER: z.string().optional().or(z.literal('')),
   SMTP_PASS: z.string().optional().or(z.literal('')),
+  ZOHO_CP_API_HOST: z.string().default('cpaas.zoho.com'),
+  ZOHO_CP_AGENT_ALIAS: z.string().optional().or(z.literal('')),
+  ZOHO_CP_API_KEY: z.string().optional().or(z.literal('')),
   SES_REGION: z.string().optional().or(z.literal('')),
   SES_FROM_EMAIL: z.string().email().optional().or(z.literal('')),
   SES_FROM_ORDERS: z.string().email().optional().or(z.literal('')),
@@ -56,16 +66,27 @@ const envSchema = z.object({
     if (!value.SES_REGION) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_REGION'], message: 'SES_REGION is required when MAIL_PROVIDER=ses' });
     }
-    if (!value.SES_FROM_EMAIL) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
+    if (!value.MAIL_FROM_EMAIL && !value.SES_FROM_EMAIL) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['MAIL_FROM_EMAIL'], message: 'MAIL_FROM_EMAIL is required when MAIL_PROVIDER=ses' });
     }
   }
   if (value.MAIL_PROVIDER === 'smtp') {
     if (!value.SMTP_HOST) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['SMTP_HOST'], message: 'SMTP_HOST is required when MAIL_PROVIDER=smtp' });
     }
-    if (!value.SES_FROM_EMAIL) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['SES_FROM_EMAIL'], message: 'SES_FROM_EMAIL is required when MAIL_PROVIDER=smtp' });
+    if (!value.MAIL_FROM_EMAIL && !value.SES_FROM_EMAIL) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['MAIL_FROM_EMAIL'], message: 'MAIL_FROM_EMAIL is required when MAIL_PROVIDER=smtp' });
+    }
+  }
+  if (value.MAIL_PROVIDER === 'zoho_api') {
+    if (!value.ZOHO_CP_API_HOST) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['ZOHO_CP_API_HOST'], message: 'ZOHO_CP_API_HOST is required when MAIL_PROVIDER=zoho_api' });
+    }
+    if (!value.ZOHO_CP_API_KEY) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['ZOHO_CP_API_KEY'], message: 'ZOHO_CP_API_KEY is required when MAIL_PROVIDER=zoho_api' });
+    }
+    if (!value.MAIL_FROM_EMAIL && !value.SES_FROM_EMAIL) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['MAIL_FROM_EMAIL'], message: 'MAIL_FROM_EMAIL is required when MAIL_PROVIDER=zoho_api' });
     }
   }
   if (value.NODE_ENV === 'production') {

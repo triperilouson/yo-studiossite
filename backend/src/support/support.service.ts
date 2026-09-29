@@ -188,7 +188,9 @@ export class SupportService {
         messages: {
           create: {
             direction: SupportMessageDirection.OUTBOUND,
-            fromEmail: this.config.get('SES_FROM_SUPPORT', { infer: true }) ||
+            fromEmail: this.config.get('MAIL_FROM_SUPPORT', { infer: true }) ||
+              this.config.get('SES_FROM_SUPPORT', { infer: true }) ||
+              this.config.get('MAIL_FROM_EMAIL', { infer: true }) ||
               this.config.get('SES_FROM_EMAIL', { infer: true }) ||
               'support@yo-studios.com',
             toEmail: thread.email,
