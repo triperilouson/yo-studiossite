@@ -14,6 +14,7 @@
         if (document.querySelector(".yo-home-orb")) return;
         const path = window.location.pathname.replace(/\\/g, "/");
         if (/\/(?:index\.html)?$/i.test(path)) return;
+        if (/\/(?:admin|game-editor)\.html$/i.test(path)) return;
 
         const style = document.createElement("style");
         style.textContent = `
