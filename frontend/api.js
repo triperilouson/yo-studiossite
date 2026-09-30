@@ -17,11 +17,11 @@
 
         const style = document.createElement("style");
         style.textContent = `
-            .yo-home-orb{position:fixed;left:22px;top:22px;z-index:9000;width:58px;height:58px;display:grid;place-items:center;background:transparent;opacity:.58;transition:opacity .25s ease,transform .25s ease}
+            .yo-home-orb{position:fixed;left:24px;top:24px;z-index:9000;width:68px;height:68px;display:grid;place-items:center;background:transparent;opacity:.58;transition:opacity .25s ease,transform .25s ease}
             .yo-home-orb:hover{opacity:.98;transform:translateY(-1px)}
-            .yo-home-orb img{width:38px;height:38px;object-fit:contain;filter:invert(1) drop-shadow(0 0 10px rgba(255,255,255,.28))}
-            .yo-home-orb span{color:#fff;font:800 20px/1 Arial,Helvetica,sans-serif;letter-spacing:-1px;text-shadow:0 0 10px rgba(255,255,255,.28)}
-            @media(max-width:640px){.yo-home-orb{left:14px;top:14px;width:48px;height:48px}.yo-home-orb img{width:31px;height:31px}}
+            .yo-home-orb img{width:48px;height:48px;object-fit:contain;filter:invert(1) drop-shadow(0 0 10px rgba(255,255,255,.28))}
+            .yo-home-orb span{color:#fff;font:800 24px/1 Arial,Helvetica,sans-serif;letter-spacing:-1px;text-shadow:0 0 10px rgba(255,255,255,.28)}
+            @media(max-width:640px){.yo-home-orb{left:14px;top:14px;width:54px;height:54px}.yo-home-orb img{width:36px;height:36px}}
         `;
         document.head.append(style);
 

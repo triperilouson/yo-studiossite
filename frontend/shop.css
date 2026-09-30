@@ -97,7 +97,7 @@ textarea:focus-visible{
     position:fixed;
 
     top:40px;
-    left:50px;
+    left:128px;
 
     font-size:14px;
 
@@ -539,6 +539,11 @@ textarea:focus-visible{
 }
 
 @media(max-width:900px){
+
+    .shop-title{
+        top:32px;
+        left:86px;
+    }
 
     .view-controls{
         display:none;
