@@ -11,9 +11,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto,
 } from './dto/accounting.dto';
-import { buildReceiptPdf, hashReceiptPayload, receiptDocumentPayload } from './receipt-pdf';
+import {
+  buildReceiptPdf, hashReceiptPayload, receiptDocumentPayload, type ReceiptPdfLineItem,
+} from './receipt-pdf';
 
 type Tx = Prisma.TransactionClient;
+type ReceiptWithOrderItems = Prisma.ReceiptGetPayload<{ include: { order: { include: { items: true } } } }>;
+type OrderItemSnapshot = { titleSnapshot: string; sizeSnapshot: string; quantity: number; unitPriceMinor: number };
 
 @Injectable()
 export class AccountingService {
@@ -103,7 +107,7 @@ export class AccountingService {
       const issuedAt = input.issuedAt ? new Date(input.issuedAt) : new Date();
       const documentNumber = await this.nextDocumentNumber(tx);
       const business = this.businessSnapshot();
-      const electronicDocumentLabel = 'Computerized document / Mismach Memuhshav';
+      const electronicDocumentLabel = 'Computerized document';
       const payload = receiptDocumentPayload({
         documentNumber,
         issuedAt,
@@ -166,8 +170,9 @@ export class AccountingService {
     const issuedAt = payment.paidAt || new Date();
     const documentNumber = await this.nextDocumentNumber(tx);
     const business = this.businessSnapshot();
-    const description = `Website order ${payment.order.id}`;
-    const electronicDocumentLabel = 'Computerized document / Mismach Memuhshav';
+    const lineItems = this.orderLineItems(payment.order.items);
+    const description = this.orderDescription(payment.order.id, payment.order.items);
+    const electronicDocumentLabel = 'Computerized document';
     const payload = receiptDocumentPayload({
       documentNumber,
       issuedAt,
@@ -183,6 +188,8 @@ export class AccountingService {
       source: ReceiptSource.WEBSITE,
       electronicDocumentLabel,
       documentHash: '',
+      lineItems,
+      shippingMinor: payment.order.shippingMinor,
     });
     return tx.receipt.create({
       data: {
@@ -210,9 +217,12 @@ export class AccountingService {
   }
 
   async pdf(id: string, actorId?: string) {
-    const receipt = await this.prisma.receipt.findUnique({ where: { id } });
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { id },
+      include: { order: { include: { items: true } } },
+    });
     if (!receipt) throw new NotFoundException('Receipt not found');
-    const buffer = buildReceiptPdf(receipt);
+    const buffer = buildReceiptPdf(this.receiptPdfInput(receipt));
     const pdfHash = createHash('sha256').update(buffer).digest('hex');
     if (receipt.pdfHash !== pdfHash) {
       await this.prisma.receipt.update({ where: { id }, data: { pdfHash } });
@@ -237,6 +247,26 @@ export class AccountingService {
         data: {
           receiptId: id, actorId, actorType: 'ADMIN', action: 'EMAIL_FAILED',
           metadata: { to, error: error instanceof Error ? error.message : 'Unknown mail error' },
+        },
+      });
+      throw error;
+    }
+    return { sent: true };
+  }
+
+  async sendCustomerReceipt(id: string) {
+    const { receipt, buffer } = await this.pdf(id);
+    if (!receipt.customerEmail) throw new ConflictException('Receipt has no email address');
+    try {
+      await this.mail.sendReceiptPdf(receipt.customerEmail, receipt, buffer);
+      await this.prisma.receiptEvent.create({
+        data: { receiptId: id, actorType: 'SYSTEM', action: 'EMAIL_SENT', metadata: { to: receipt.customerEmail } },
+      });
+    } catch (error) {
+      await this.prisma.receiptEvent.create({
+        data: {
+          receiptId: id, actorType: 'SYSTEM', action: 'EMAIL_FAILED',
+          metadata: { to: receipt.customerEmail, error: error instanceof Error ? error.message : 'Unknown mail error' },
         },
       });
       throw error;
@@ -403,5 +433,32 @@ export class AccountingService {
     return [record.line1, record.line2, record.city, record.postalCode, record.country]
       .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
       .join(', ') || null;
+  }
+
+  private receiptPdfInput(receipt: ReceiptWithOrderItems) {
+    return {
+      ...receipt,
+      lineItems: receipt.order ? this.orderLineItems(receipt.order.items) : undefined,
+      shippingMinor: receipt.order?.shippingMinor || 0,
+    };
+  }
+
+  private orderLineItems(items: OrderItemSnapshot[]): ReceiptPdfLineItem[] {
+    return items.map((item) => ({
+      title: item.titleSnapshot,
+      size: item.sizeSnapshot,
+      quantity: item.quantity,
+      unitPriceMinor: item.unitPriceMinor,
+      totalMinor: item.unitPriceMinor * item.quantity,
+    }));
+  }
+
+  private orderDescription(orderId: string, items: OrderItemSnapshot[]) {
+    const itemSummary = items
+      .slice(0, 3)
+      .map((item) => `${item.titleSnapshot}${item.sizeSnapshot ? ` / ${item.sizeSnapshot}` : ''} x${item.quantity}`)
+      .join('; ');
+    const suffix = items.length > 3 ? `; +${items.length - 3} more` : '';
+    return `Website order ${orderId}${itemSummary ? ` - ${itemSummary}${suffix}` : ''}`;
   }
 }
