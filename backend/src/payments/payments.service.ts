@@ -40,6 +40,7 @@ export class PaymentsService {
       amountMinor: order.totalMinor,
       currency: order.currency,
       customerEmail: order.emailSnapshot,
+      customerName: order.nameSnapshot,
     });
     const payment = await this.prisma.payment.upsert({
       where: { orderId_provider: { orderId: order.id, provider: this.provider.name } },

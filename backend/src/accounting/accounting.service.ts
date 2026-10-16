@@ -12,7 +12,7 @@ import {
   CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto,
 } from './dto/accounting.dto';
 import {
-  buildReceiptPdf, hashReceiptPayload, receiptDocumentPayload, type ReceiptPdfLineItem,
+  buildReceiptPdf, hashReceiptPayload, receiptDocumentPayload, type ReceiptPdfLanguage, type ReceiptPdfLineItem,
 } from './receipt-pdf';
 
 type Tx = Prisma.TransactionClient;
@@ -27,6 +27,39 @@ export class AccountingService {
     private readonly mail: MailService,
     private readonly config: ConfigService<Environment, true>,
   ) {}
+
+  settings() {
+    return this.prisma.storeSettings.upsert({
+      where: { id: 1 }, create: { id: 1 }, update: {},
+      select: { hebrewReceiptsEnabled: true },
+    });
+  }
+
+  async updateSettings(actorId: string, hebrewReceiptsEnabled: boolean) {
+    const settings = await this.prisma.storeSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, hebrewReceiptsEnabled, updatedById: actorId },
+      update: { hebrewReceiptsEnabled, updatedById: actorId },
+      select: { hebrewReceiptsEnabled: true },
+    });
+    await this.audit.record(actorId, 'RECEIPT_LANGUAGE_UPDATED', 'StoreSettings', '1', settings);
+    return settings;
+  }
+
+  private async emailPdfs(id: string, actorId?: string) {
+    const settings = await this.settings();
+    const en = await this.pdf(id, actorId, 'en');
+    const he = settings.hebrewReceiptsEnabled ? await this.pdf(id, actorId, 'he') : undefined;
+    const order = en.receipt.order;
+    const images = order ? await this.prisma.productImage.findMany({
+      where: { productId: { in: order.items.map((item) => item.productIdSnapshot) } },
+      orderBy: { position: 'asc' },
+    }) : [];
+    const items = order?.items.map((item) => ({
+      ...item, imageUrl: images.find((image) => image.productId === item.productIdSnapshot)?.url,
+    }));
+    return { receipt: en.receipt, he: he?.buffer, en: en.buffer, items };
+  }
 
   list(input: ReceiptQueryDto) {
     const where = this.receiptWhere(input);
@@ -216,29 +249,50 @@ export class AccountingService {
     });
   }
 
-  async pdf(id: string, actorId?: string) {
+  async pdf(id: string, actorId?: string, language: ReceiptPdfLanguage = 'en') {
     const receipt = await this.prisma.receipt.findUnique({
       where: { id },
       include: { order: { include: { items: true } } },
     });
     if (!receipt) throw new NotFoundException('Receipt not found');
-    const buffer = buildReceiptPdf(this.receiptPdfInput(receipt));
+    const buffer = await buildReceiptPdf(this.receiptPdfInput(receipt), language);
     const pdfHash = createHash('sha256').update(buffer).digest('hex');
     if (receipt.pdfHash !== pdfHash) {
       await this.prisma.receipt.update({ where: { id }, data: { pdfHash } });
       await this.prisma.receiptEvent.create({
-        data: { receiptId: id, actorId, actorType: actorId ? 'ADMIN' : 'SYSTEM', action: 'PDF_GENERATED', metadata: { pdfHash } },
+        data: { receiptId: id, actorId, actorType: actorId ? 'ADMIN' : 'SYSTEM', action: 'PDF_GENERATED', metadata: { pdfHash, language } },
       });
     }
     return { receipt: { ...receipt, pdfHash }, buffer };
   }
 
+  async pdfBundle(id: string, actorId?: string) {
+    const he = await this.pdf(id, actorId, 'he');
+    const en = await this.pdf(id, actorId, 'en');
+    const bundleHash = hashReceiptPayload({
+      receiptId: id,
+      hePdfHash: he.receipt.pdfHash,
+      enPdfHash: en.receipt.pdfHash,
+    });
+    await this.prisma.receipt.update({ where: { id }, data: { pdfHash: bundleHash } });
+    await this.prisma.receiptEvent.create({
+      data: {
+        receiptId: id,
+        actorId,
+        actorType: actorId ? 'ADMIN' : 'SYSTEM',
+        action: 'PDF_GENERATED',
+        metadata: { pdfHash: bundleHash, hePdfHash: he.receipt.pdfHash, enPdfHash: en.receipt.pdfHash, language: 'bundle' },
+      },
+    });
+    return { receipt: { ...he.receipt, pdfHash: bundleHash }, he: he.buffer, en: en.buffer };
+  }
+
   async send(actorId: string, id: string, input: SendReceiptDto) {
-    const { receipt, buffer } = await this.pdf(id, actorId);
+    const { receipt, he, en, items } = await this.emailPdfs(id, actorId);
     const to = input.email?.trim().toLowerCase() || receipt.customerEmail;
     if (!to) throw new ConflictException('Receipt has no email address');
     try {
-      await this.mail.sendReceiptPdf(to, receipt, buffer);
+      await this.mail.sendReceiptPdfs(to, receipt, { he, en }, items);
       await this.prisma.receiptEvent.create({
         data: { receiptId: id, actorId, actorType: 'ADMIN', action: 'EMAIL_SENT', metadata: { to } },
       });
@@ -255,10 +309,10 @@ export class AccountingService {
   }
 
   async sendCustomerReceipt(id: string) {
-    const { receipt, buffer } = await this.pdf(id);
+    const { receipt, he, en, items } = await this.emailPdfs(id);
     if (!receipt.customerEmail) throw new ConflictException('Receipt has no email address');
     try {
-      await this.mail.sendReceiptPdf(receipt.customerEmail, receipt, buffer);
+      await this.mail.sendReceiptPdfs(receipt.customerEmail, receipt, { he, en }, items);
       await this.prisma.receiptEvent.create({
         data: { receiptId: id, actorType: 'SYSTEM', action: 'EMAIL_SENT', metadata: { to: receipt.customerEmail } },
       });
@@ -421,7 +475,7 @@ export class AccountingService {
 
   private businessSnapshot() {
     return {
-      businessName: this.config.get('BUSINESS_NAME', { infer: true }),
+      businessName: this.config.get('BUSINESS_NAME', { infer: true }) || 'יוו',
       businessTaxId: this.config.get('BUSINESS_TAX_ID', { infer: true }) || 'MISSING_BUSINESS_TAX_ID',
       businessAddress: this.config.get('BUSINESS_ADDRESS', { infer: true }) || 'MISSING_BUSINESS_ADDRESS',
     };

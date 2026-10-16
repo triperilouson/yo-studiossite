@@ -20,7 +20,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ENABLE_SWAGGER: z.enum(['true', 'false']).default('false'),
   FRONTEND_URL: z.string().url().default('http://127.0.0.1:5500/frontend'),
-  BUSINESS_NAME: z.string().min(1).max(160).default('YO STUDIOS'),
+  BUSINESS_NAME: z.string().min(1).max(160).default('יוו'),
   BUSINESS_TAX_ID: z.string().optional().or(z.literal('')),
   BUSINESS_ADDRESS: z.string().optional().or(z.literal('')),
   MAIL_PROVIDER: z.enum(['console', 'ses', 'smtp', 'zoho_api']).default('console'),
@@ -52,6 +52,11 @@ const envSchema = z.object({
   SUPPORT_INBOUND_WEBHOOK_SECRET: z.string().min(32).optional().or(z.literal('')),
   SUPER_ADMIN_EMAIL: z.string().email().optional().or(z.literal('')),
   SUPER_ADMIN_PASSWORD: z.string().min(18).optional().or(z.literal('')),
+  PAYMENT_PROVIDER: z.enum(['none', 'hyp']).default('none'),
+  HYP_API_URL: z.string().url().default('https://pay.hyp.co.il/p/'),
+  HYP_MASOF: z.string().optional().or(z.literal('')),
+  HYP_API_KEY: z.string().optional().or(z.literal('')),
+  HYP_PASSP: z.string().optional().or(z.literal('')),
   GROW_API_URL: z.string().url().optional().or(z.literal('')),
   GROW_API_KEY: z.string().min(20).optional().or(z.literal('')),
   GROW_WEBHOOK_SECRET: z.string().min(32).optional().or(z.literal('')),
@@ -95,6 +100,16 @@ const envSchema = z.object({
     }
     if (!value.BUSINESS_ADDRESS) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['BUSINESS_ADDRESS'], message: 'BUSINESS_ADDRESS is required in production for receipts' });
+    }
+    if (value.PAYMENT_PROVIDER !== 'hyp') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['PAYMENT_PROVIDER'], message: 'PAYMENT_PROVIDER=hyp is required in production' });
+    }
+  }
+  if (value.PAYMENT_PROVIDER === 'hyp') {
+    for (const field of ['HYP_MASOF', 'HYP_API_KEY', 'HYP_PASSP'] as const) {
+      if (!value[field]) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when PAYMENT_PROVIDER=hyp` });
+      }
     }
   }
 

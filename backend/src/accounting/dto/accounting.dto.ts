@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min,
+  IsBoolean, IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min,
 } from 'class-validator';
 import { ReceiptPaymentMethod } from '@prisma/client';
 
@@ -28,6 +28,10 @@ export class ReceiptQueryDto {
 
 export class SendReceiptDto {
   @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+}
+
+export class ReceiptSettingsDto {
+  @IsBoolean() hebrewReceiptsEnabled!: boolean;
 }
 
 export class CancelReceiptDto {

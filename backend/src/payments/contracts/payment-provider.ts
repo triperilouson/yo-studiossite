@@ -5,6 +5,7 @@ export interface CreatePaymentSessionInput {
   amountMinor: number;
   currency: string;
   customerEmail: string;
+  customerName?: string;
 }
 
 export interface CreatedPaymentSession {

@@ -7,7 +7,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthUser } from '../common/types/auth-user';
 import { AccountingService } from './accounting.service';
 import {
-  CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto,
+  CancelReceiptDto, CreateReceiptDto, CreateReceiptRefundDto, ReceiptQueryDto, SendReceiptDto, ReceiptSettingsDto,
 } from './dto/accounting.dto';
 
 @ApiTags('admin-accounting')
@@ -16,6 +16,14 @@ import {
 @Controller('admin/accounting')
 export class AdminAccountingController {
   constructor(private readonly accounting: AccountingService) {}
+
+  @Get('settings')
+  settings() { return this.accounting.settings(); }
+
+  @Patch('settings')
+  updateSettings(@CurrentUser() actor: AuthUser, @Body() input: ReceiptSettingsDto) {
+    return this.accounting.updateSettings(actor.userId, input.hebrewReceiptsEnabled);
+  }
 
   @Get('receipts')
   list(@Query() query: ReceiptQueryDto) {
@@ -74,11 +82,17 @@ export class AdminAccountingController {
   }
 
   @Get('receipts/:id/pdf')
-  async pdf(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Res() reply: FastifyReply) {
-    const { receipt, buffer } = await this.accounting.pdf(id, actor.userId);
+  async pdf(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('language') language: 'en' | 'he' = 'en',
+    @Res() reply: FastifyReply,
+  ) {
+    const lang = language === 'he' ? 'he' : 'en';
+    const { receipt, buffer } = await this.accounting.pdf(id, actor.userId, lang);
     return reply
       .header('Content-Type', 'application/pdf')
-      .header('Content-Disposition', `attachment; filename="yo-receipt-${receipt.documentNumber}.pdf"`)
+      .header('Content-Disposition', `attachment; filename="yo-receipt-${receipt.documentNumber}-${lang}.pdf"`)
       .send(buffer);
   }
 

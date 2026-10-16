@@ -268,13 +268,14 @@ function receiptRow(receipt) {
     const actions = node("div", "row-actions");
     const refundedMinor = (receipt.refunds || []).filter((refund) => refund.status === "SUCCEEDED").reduce((sum, refund) => sum + refund.amountMinor, 0);
     actions.append(
-        button("PDF", () => YOApi.download(`/admin/accounting/receipts/${receipt.id}/pdf`, `yo-receipt-${receipt.documentNumber}.pdf`).catch((error) => setStatus(error.message, true))),
+        button("PDF HE", () => YOApi.download(`/admin/accounting/receipts/${receipt.id}/pdf?language=he`, `yo-receipt-${receipt.documentNumber}-he.pdf`).catch((error) => setStatus(error.message, true))),
+        button("PDF EN", () => YOApi.download(`/admin/accounting/receipts/${receipt.id}/pdf?language=en`, `yo-receipt-${receipt.documentNumber}-en.pdf`).catch((error) => setStatus(error.message, true))),
         button("SEND", async () => {
             try {
                 const email = window.prompt("Send receipt to email", receipt.customerEmail || "");
                 if (email === null) return;
                 await YOApi.request(`/admin/accounting/receipts/${receipt.id}/send`, { method: "POST", auth: true, body: { email: email || undefined } });
-                setStatus("Receipt email sent");
+                setStatus("Receipt email sent with Hebrew and English PDFs");
             } catch (error) { setStatus(error.message, true); }
         }),
         button("REFUND", async () => {
@@ -315,10 +316,14 @@ function receiptRow(receipt) {
 async function loadAccounting() {
     try {
         const query = receiptQuery();
-        const [summary, receipts] = await Promise.all([
+        const [summary, receipts, settings] = await Promise.all([
             YOApi.request(`/admin/accounting/summary${query}`, { auth: true }),
             YOApi.request(`/admin/accounting/receipts${query}`, { auth: true }),
+            YOApi.request('/admin/accounting/settings', { auth: true }),
         ]);
+        const languageToggle = document.getElementById('hebrew-receipts-enabled');
+        languageToggle.checked = settings.hebrewReceiptsEnabled;
+        languageToggle.disabled = false;
         state.accounting = summary; state.receipts = receipts;
         document.getElementById("accounting-total").textContent = YOApi.formatMoney(summary.totalReceived, "ILS");
         document.getElementById("accounting-net").textContent = YOApi.formatMoney(summary.netReceived, "ILS");
@@ -834,6 +839,18 @@ document.getElementById("marketing-form").addEventListener("submit", async (even
 });
 
 const receiptDialog = document.getElementById("receipt-dialog");
+document.getElementById('hebrew-receipts-enabled').addEventListener('change', async (event) => {
+    const toggle = event.target;
+    const enabled = toggle.checked;
+    toggle.disabled = true;
+    try {
+        await YOApi.request('/admin/accounting/settings', { method: 'PATCH', auth: true, body: { hebrewReceiptsEnabled: enabled } });
+        setStatus(enabled ? 'English + Hebrew receipt emails enabled' : 'Receipt emails: English only');
+    } catch (error) {
+        toggle.checked = !enabled;
+        setStatus(error.message, true);
+    } finally { toggle.disabled = false; }
+});
 const receiptForm = document.getElementById("receipt-form");
 document.getElementById("open-receipt-modal").addEventListener("click", () => {
     receiptForm.reset();
@@ -841,6 +858,10 @@ document.getElementById("open-receipt-modal").addEventListener("click", () => {
     receiptDialog.showModal();
 });
 document.getElementById("close-receipt-modal").addEventListener("click", () => receiptDialog.close());
+document.querySelectorAll("[data-receipt-description]").forEach((preset) => preset.addEventListener("click", () => {
+    receiptForm.elements.description.value = preset.dataset.receiptDescription;
+    receiptForm.elements.description.focus();
+}));
 ["receipt-search", "receipt-from", "receipt-to"].forEach((id) => document.getElementById(id).addEventListener("input", () => loadAccounting()));
 document.getElementById("receipt-export-csv").addEventListener("click", () => {
     YOApi.download(`/admin/accounting/reports.csv${receiptQuery()}`, "yo-receipts.csv").catch((error) => setStatus(error.message, true));

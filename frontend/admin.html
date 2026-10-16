@@ -159,6 +159,7 @@
                     <input id="receipt-to" type="date">
                     <button id="receipt-export-csv" class="secondary-action" type="button">EXPORT CSV</button>
                 </div>
+                <label><input id="hebrew-receipts-enabled" type="checkbox" disabled> INCLUDE HEBREW PDF IN RECEIPT EMAILS (ENGLISH IS ALWAYS SENT)</label>
                 <div id="admin-receipts" class="admin-table accounting-table"></div>
             </section>
         </main>
@@ -210,9 +211,14 @@
                 <label>PAYMENT DATE<input name="issuedAt" type="datetime-local"></label>
                 <label>E-DOC CONSENT DATE<input name="electronicDocsConsentAt" type="datetime-local"></label>
                 <label>E-DOC CONSENT SOURCE<input name="electronicDocsConsentSource" maxlength="120" placeholder="manual / whatsapp / email"></label>
-                <label class="full-field">DESCRIPTION<textarea name="description" required maxlength="500"></textarea></label>
+                <label class="full-field">DESCRIPTION<textarea name="description" required maxlength="500" placeholder="שיעור שחייה / Swimming lesson"></textarea></label>
+                <div class="receipt-presets full-field">
+                    <button type="button" data-receipt-description="שיעור שחייה / Swimming lesson">SWIMMING LESSON</button>
+                    <button type="button" data-receipt-description="אימון שחייה / Swimming training">SWIMMING TRAINING</button>
+                    <button type="button" data-receipt-description="תשלום עבור שירות / Payment for service">SERVICE PAYMENT</button>
+                </div>
             </div></div>
-            <footer><p>Issued receipts are numbered sequentially and cannot be silently edited later.</p><button class="primary-action" type="submit">CREATE RECEIPT</button></footer>
+            <footer><p>Receipts use one number and generate Hebrew original plus English translation. PDFs are not stored after sending, only hashes/events.</p><button class="primary-action" type="submit">CREATE RECEIPT</button></footer>
         </form>
     </dialog>
 

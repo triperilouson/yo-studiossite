@@ -6,6 +6,7 @@ import { OrderFulfillmentStatus, OrderStatus, type Receipt } from '@prisma/clien
 import type { Environment } from '../config/env';
 
 type OrderMailItem = {
+  imageUrl?: string;
   titleSnapshot: string;
   sizeSnapshot: string;
   quantity: number;
@@ -117,6 +118,10 @@ export class MailService {
   }
 
   async sendReceiptPdf(to: string, receipt: Receipt, pdf: Buffer): Promise<void> {
+    return this.sendReceiptPdfs(to, receipt, { en: pdf });
+  }
+
+  async sendReceiptPdfs(to: string, receipt: Receipt, pdfs: { he?: Buffer; en?: Buffer }, items: OrderMailItem[] = []): Promise<void> {
     const subject = `YO STUDIOS receipt ${receipt.documentNumber}`;
     const text = [
       'YO STUDIOS receipt',
@@ -125,24 +130,44 @@ export class MailService {
       `Amount: ${this.money(receipt.amountMinor, receipt.currency)}`,
       `Issued at: ${receipt.issuedAt.toISOString()}`,
       '',
-      'The PDF receipt is attached.',
+      ...items.map((item) => `${item.titleSnapshot} / ${item.sizeSnapshot} x${item.quantity} — ${this.money(item.unitPriceMinor, receipt.currency)} each — ${this.money(item.unitPriceMinor * item.quantity, receipt.currency)}`),
+      pdfs.he ? 'Your English and Hebrew receipts are attached.' : 'Your English receipt is attached.',
     ].join('\n');
     const html = this.layout('Receipt issued', `
-      <p>Your YO STUDIOS receipt is attached as a PDF.</p>
+      <p>Your YO STUDIOS receipt is attached as PDF.</p>
       <p class="muted">Document ${receipt.documentNumber}</p>
       <p><strong>${this.escape(this.money(receipt.amountMinor, receipt.currency))}</strong></p>
+      ${items.length ? `<table>${items.map((item) => {
+        let image = '';
+        try {
+          const url = new URL(item.imageUrl || '', this.config.get('FRONTEND_URL', { infer: true }));
+          if (item.imageUrl && ['https:', 'http:'].includes(url.protocol)) image = `<img src="${this.escape(url.href)}" alt="${this.escape(item.titleSnapshot)}" width="64" height="64" style="object-fit:cover">`;
+        } catch { /* A missing preview must not prevent sending the receipt. */ }
+        return `<tr><td>${image}</td><td>${this.escape(item.titleSnapshot)}<br>${this.escape(item.sizeSnapshot)} · Qty ${item.quantity}</td><td>${this.escape(this.money(item.unitPriceMinor, receipt.currency))} each<br>${this.escape(this.money(item.unitPriceMinor * item.quantity, receipt.currency))}</td></tr>`;
+      }).join('')}</table>` : ''}
     `);
+    const attachments: MailAttachment[] = [];
+    if (pdfs.he) {
+      attachments.push({
+        filename: `yo-receipt-${receipt.documentNumber}-he.pdf`,
+        contentType: 'application/pdf',
+        content: pdfs.he,
+      });
+    }
+    if (pdfs.en) {
+      attachments.push({
+        filename: `yo-receipt-${receipt.documentNumber}-en.pdf`,
+        contentType: 'application/pdf',
+        content: pdfs.en,
+      });
+    }
     await this.sendRaw({
       channel: 'orders',
       to,
       subject,
       text,
       html,
-      attachments: [{
-        filename: `yo-receipt-${receipt.documentNumber}.pdf`,
-        contentType: 'application/pdf',
-        content: pdf,
-      }],
+      attachments,
     });
   }
 

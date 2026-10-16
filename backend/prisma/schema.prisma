@@ -629,6 +629,7 @@ model ReceiptEvent {
 
 model StoreSettings {
   id                  Int      @id @default(1)
+  hebrewReceiptsEnabled Boolean @default(false)
   registrationEnabled Boolean  @default(true)
   updatedById         String?  @db.Uuid
   createdAt           DateTime @default(now())

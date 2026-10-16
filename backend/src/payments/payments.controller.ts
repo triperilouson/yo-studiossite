@@ -19,9 +19,10 @@ export class PaymentsController {
   }
 
   @Public()
+  @Post('webhooks/hyp')
   @Post('webhooks/grow')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Receive and verify an idempotent Grow webhook' })
+  @ApiOperation({ summary: 'Receive and verify an idempotent payment webhook' })
   webhook(
     @Req() request: RawBodyRequest<FastifyRequest>,
     @Headers() headers: Record<string, string | string[] | undefined>,

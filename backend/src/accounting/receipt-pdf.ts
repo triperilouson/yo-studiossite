@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+
+const PDFDocument = require('pdfkit');
 
 type ReceiptPdfInput = {
   documentNumber: number;
@@ -21,12 +24,31 @@ type ReceiptPdfInput = {
   shippingMinor?: number;
 };
 
+export type ReceiptPdfLanguage = 'en' | 'he';
 export type ReceiptPdfLineItem = {
   title: string;
   size: string;
   quantity: number;
   unitPriceMinor: number;
   totalMinor: number;
+};
+
+type PdfDoc = {
+  registerFont(name: string, path: string): PdfDoc;
+  font(name: string): PdfDoc;
+  fontSize(size: number): PdfDoc;
+  fillColor(color: string): PdfDoc;
+  rect(x: number, y: number, width: number, height: number): PdfDoc;
+  fill(color?: string): PdfDoc;
+  moveTo(x: number, y: number): PdfDoc;
+  lineTo(x: number, y: number): PdfDoc;
+  strokeColor(color: string): PdfDoc;
+  lineWidth(width: number): PdfDoc;
+  stroke(): PdfDoc;
+  text(text: string, x?: number, y?: number, options?: Record<string, unknown>): PdfDoc;
+  on(event: 'data', callback: (chunk: Buffer) => void): PdfDoc;
+  on(event: 'end', callback: () => void): PdfDoc;
+  end(): void;
 };
 
 export function receiptDocumentPayload(input: ReceiptPdfInput) {
@@ -61,134 +83,171 @@ export function hashReceiptPayload(payload: unknown) {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
-export function buildReceiptPdf(input: ReceiptPdfInput) {
-  const issuedAt = input.issuedAt.toISOString();
-  const amount = money(input.amountMinor, input.currency);
-  const label = input.electronicDocumentLabel || 'Computerized document';
-  const itemRows = orderItemRows(input);
-  const content = [
-    rect(0, 0, 595, 842, '0.045 0.045 0.045'),
-    rect(42, 628, 511, 150, '0.96 0.95 0.92'),
-    rect(42, 748, 511, 30, '0.08 0.08 0.08'),
-    rect(42, 567, 511, 1, '0.78 0.78 0.74'),
-    rect(42, 126, 511, 1, '0.78 0.78 0.74'),
-    text(input.businessName, 54, 757, 13, '1 1 1'),
-    text('RECEIPT', 54, 706, 34, '0.08 0.08 0.08'),
-    text('KABALA - OSEK PATUR', 55, 684, 11, '0.28 0.28 0.28'),
-    text('NO VAT CHARGED', 55, 666, 10, '0.28 0.28 0.28'),
-    text(`No. ${input.documentNumber}`, 392, 706, 22, '0.08 0.08 0.08'),
-    text(`Issued ${issuedAt}`, 392, 682, 9, '0.32 0.32 0.32'),
-    text(label.toUpperCase(), 392, 666, 9, '0.32 0.32 0.32'),
-    text('BUSINESS', 54, 594, 9, '0.72 0.72 0.68'),
-    text(fit(input.businessName, 44), 54, 575, 13, '0.95 0.95 0.92'),
-    text(`Business ID: ${input.businessTaxId}`, 54, 555, 10, '0.72 0.72 0.68'),
-    ...wrappedText(input.businessAddress, 54, 538, 10, 62, 13, '0.72 0.72 0.68'),
-    text('CUSTOMER', 318, 594, 9, '0.72 0.72 0.68'),
-    text(fit(input.customerName, 34), 318, 575, 13, '0.95 0.95 0.92'),
-    text(`Email: ${fit(input.customerEmail || '-', 42)}`, 318, 555, 10, '0.72 0.72 0.68'),
-    ...wrappedText(input.payerAddress || '-', 318, 538, 10, 38, 13, '0.72 0.72 0.68'),
-    rect(42, 377, 511, 112, '0.96 0.95 0.92'),
-    text('PAYMENT DETAILS', 54, 462, 9, '0.32 0.32 0.32'),
-    text('Amount received', 54, 435, 12, '0.22 0.22 0.22'),
-    text(amount, 374, 429, 26, '0.08 0.08 0.08'),
-    text(`Method: ${input.paymentMethod}`, 54, 407, 10, '0.32 0.32 0.32'),
-    text(`Reference: ${fit(input.paymentReference || '-', 54)}`, 54, 390, 10, '0.32 0.32 0.32'),
-    text('DESCRIPTION', 54, 335, 9, '0.72 0.72 0.68'),
-    ...wrappedText(input.description, 54, 315, 10, 82, 13, '0.95 0.95 0.92', 2),
-    ...itemRows,
-    text(`Source: ${input.source}`, 54, 163, 9, '0.72 0.72 0.68'),
-    text(`Document hash: ${fit(input.documentHash, 70)}`, 54, 146, 7, '0.55 0.55 0.52'),
-    text('This is a computerized receipt generated after payment confirmation.', 54, 102, 9, '0.72 0.72 0.68'),
-    text('Keep this document for your records. Amounts are shown without VAT for Osek Patur.', 54, 87, 9, '0.72 0.72 0.68'),
-  ].join('\n');
-  const stream = Buffer.from(content, 'utf8');
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${stream.length} >>\nstream\n${content}\nendstream`,
-  ];
-  const chunks: string[] = ['%PDF-1.4\n'];
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(Buffer.byteLength(chunks.join(''), 'utf8'));
-    chunks.push(`${index + 1} 0 obj\n${object}\nendobj\n`);
+export function buildReceiptPdf(input: ReceiptPdfInput, language: ReceiptPdfLanguage = 'en'): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Receipt ${input.documentNumber}` } }) as PdfDoc;
+    doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+    const fontPath = join(__dirname, 'assets', 'NotoSansHebrew-Regular.ttf');
+    doc.registerFont('receipt', fontPath).font('receipt');
+    drawReceipt(doc, input, language);
+    doc.end();
   });
-  const xrefOffset = Buffer.byteLength(chunks.join(''), 'utf8');
-  chunks.push(`xref\n0 ${objects.length + 1}\n`);
-  chunks.push('0000000000 65535 f \n');
-  offsets.slice(1).forEach((offset) => chunks.push(`${offset.toString().padStart(10, '0')} 00000 n \n`));
-  chunks.push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
-  return Buffer.from(chunks.join(''), 'utf8');
+}
+
+function drawReceipt(doc: PdfDoc, input: ReceiptPdfInput, language: ReceiptPdfLanguage) {
+  const brand = input.businessName || 'יוו';
+  const isHe = language === 'he';
+  background(doc);
+  header(doc, input, brand, isHe);
+  parties(doc, input, brand, isHe);
+  payment(doc, input, isHe);
+  items(doc, input, isHe);
+  footer(doc, input, isHe);
+}
+
+function background(doc: PdfDoc) {
+  doc.rect(0, 0, 595, 842).fill('#0b0b0b');
+  doc.rect(42, 64, 511, 150).fill('#f2f0ea');
+  doc.rect(42, 64, 511, 30).fill('#151515');
+  rule(doc, 42, 281, 511);
+  rule(doc, 42, 716, 511);
+}
+
+function header(doc: PdfDoc, input: ReceiptPdfInput, brand: string, isHe: boolean) {
+  const issuedAt = input.issuedAt.toISOString();
+  const label = input.electronicDocumentLabel || 'Computerized document';
+  text(doc, brand, 54, 73, 13, '#ffffff');
+  if (isHe) {
+    text(doc, 'קבלה', 372, 112, 34, '#151515', { width: 165, align: 'right' });
+    text(doc, 'עוסק פטור', 372, 153, 12, '#4a4a4a', { width: 165, align: 'right' });
+    text(doc, 'לא כולל מע"מ - עוסק פטור', 316, 173, 10, '#4a4a4a', { width: 221, align: 'right' });
+    text(doc, 'מסמך מקור בעברית', 372, 193, 9, '#5a5a5a', { width: 165, align: 'right' });
+    text(doc, `No. ${input.documentNumber}`, 54, 112, 22, '#151515');
+    text(doc, `Issued ${issuedAt}`, 54, 152, 9, '#4a4a4a');
+    text(doc, label.toUpperCase(), 54, 172, 9, '#4a4a4a');
+  } else {
+    text(doc, 'RECEIPT', 54, 112, 34, '#151515');
+    text(doc, 'KABALA - OSEK PATUR', 55, 153, 11, '#4a4a4a');
+    text(doc, 'NO VAT CHARGED', 55, 173, 10, '#4a4a4a');
+    text(doc, 'ENGLISH COPY / TRANSLATION', 55, 193, 9, '#5a5a5a');
+    text(doc, `No. ${input.documentNumber}`, 392, 112, 22, '#151515');
+    text(doc, `Issued ${issuedAt}`, 392, 152, 9, '#4a4a4a');
+    text(doc, label.toUpperCase(), 392, 172, 9, '#4a4a4a');
+  }
+}
+
+function parties(doc: PdfDoc, input: ReceiptPdfInput, brand: string, isHe: boolean) {
+  if (isHe) {
+    label(doc, 'פרטי העסק', 54, 248, 222, 'right');
+    text(doc, brand, 54, 268, 13, '#f2f0ea', { width: 222, align: 'right' });
+    text(doc, `מספר עוסק: ${input.businessTaxId}`, 54, 294, 10, '#b8b8b2', { width: 222, align: 'right' });
+    text(doc, input.businessAddress, 54, 315, 10, '#b8b8b2', { width: 222, align: 'right' });
+    label(doc, 'לקוח', 318, 248, 222, 'right');
+    text(doc, input.customerName, 318, 268, 13, '#f2f0ea', { width: 222, align: 'right' });
+    text(doc, `Email: ${input.customerEmail || '-'}`, 318, 294, 10, '#b8b8b2', { width: 222 });
+    text(doc, input.payerAddress || '-', 318, 315, 10, '#b8b8b2', { width: 222, align: 'right' });
+    return;
+  }
+  label(doc, 'BUSINESS', 54, 248);
+  text(doc, brand, 54, 268, 13, '#f2f0ea', { width: 222 });
+  text(doc, `Business ID: ${input.businessTaxId}`, 54, 294, 10, '#b8b8b2', { width: 222 });
+  text(doc, input.businessAddress, 54, 315, 10, '#b8b8b2', { width: 222 });
+  label(doc, 'CUSTOMER', 318, 248);
+  text(doc, input.customerName, 318, 268, 13, '#f2f0ea', { width: 222 });
+  text(doc, `Email: ${input.customerEmail || '-'}`, 318, 294, 10, '#b8b8b2', { width: 222 });
+  text(doc, input.payerAddress || '-', 318, 315, 10, '#b8b8b2', { width: 222 });
+}
+
+function payment(doc: PdfDoc, input: ReceiptPdfInput, isHe: boolean) {
+  doc.rect(42, 375, 511, 112).fill('#f2f0ea');
+  const amount = money(input.amountMinor, input.currency);
+  if (isHe) {
+    text(doc, 'פרטי תשלום', 54, 397, 9, '#4a4a4a', { width: 486, align: 'right' });
+    text(doc, 'סכום שהתקבל', 54, 426, 12, '#303030', { width: 486, align: 'right' });
+    text(doc, amount, 54, 421, 26, '#151515');
+    text(doc, `אמצעי תשלום: ${input.paymentMethod}`, 54, 456, 10, '#4a4a4a', { width: 486, align: 'right' });
+    text(doc, `אסמכתא: ${input.paymentReference || '-'}`, 54, 474, 10, '#4a4a4a', { width: 486, align: 'right' });
+    label(doc, 'תיאור', 54, 526, 486, 'right');
+    text(doc, input.description, 54, 548, 10, '#f2f0ea', { width: 486, align: 'right' });
+    return;
+  }
+  text(doc, 'PAYMENT DETAILS', 54, 397, 9, '#4a4a4a');
+  text(doc, 'Amount received', 54, 426, 12, '#303030');
+  text(doc, amount, 374, 421, 26, '#151515', { width: 166, align: 'right' });
+  text(doc, `Method: ${input.paymentMethod}`, 54, 456, 10, '#4a4a4a');
+  text(doc, `Reference: ${input.paymentReference || '-'}`, 54, 474, 10, '#4a4a4a');
+  label(doc, 'DESCRIPTION', 54, 526);
+  text(doc, input.description, 54, 548, 10, '#f2f0ea', { width: 486 });
+}
+
+function items(doc: PdfDoc, input: ReceiptPdfInput, isHe: boolean) {
+  const rows = input.lineItems?.slice(0, 5) || [];
+  if (isHe) {
+    label(doc, 'פריטים', 54, 604, 486, 'right');
+    text(doc, 'פריט', 54, 628, 8, '#8a8a84', { width: 240, align: 'right' });
+    text(doc, 'כמות', 304, 628, 8, '#8a8a84', { width: 45, align: 'right' });
+    text(doc, 'Unit', 374, 628, 8, '#8a8a84');
+    text(doc, 'Total', 470, 628, 8, '#8a8a84');
+    rows.forEach((item, index) => {
+      const y = 650 + (index * 18);
+      const name = `${item.title}${item.size ? ` / ${item.size}` : ''}`;
+      text(doc, name, 54, y, 9, '#f2f0ea', { width: 240, align: 'right' });
+      text(doc, String(item.quantity), 304, y, 9, '#f2f0ea', { width: 45, align: 'right' });
+      text(doc, money(item.unitPriceMinor, input.currency), 374, y, 9, '#f2f0ea');
+      text(doc, money(item.totalMinor, input.currency), 470, y, 9, '#f2f0ea');
+    });
+    if (input.shippingMinor) text(doc, `משלוח: ${money(input.shippingMinor, input.currency)}`, 54, 747, 8, '#b8b8b2', { width: 486, align: 'right' });
+    return;
+  }
+  label(doc, 'ORDER ITEMS', 54, 604);
+  text(doc, 'Item', 54, 628, 8, '#8a8a84');
+  text(doc, 'Qty', 331, 628, 8, '#8a8a84');
+  text(doc, 'Unit', 385, 628, 8, '#8a8a84');
+  text(doc, 'Total', 475, 628, 8, '#8a8a84');
+  rows.forEach((item, index) => {
+    const y = 650 + (index * 18);
+    const name = `${item.title}${item.size ? ` / ${item.size}` : ''}`;
+    text(doc, name, 54, y, 9, '#f2f0ea', { width: 260 });
+    text(doc, String(item.quantity), 331, y, 9, '#f2f0ea');
+    text(doc, money(item.unitPriceMinor, input.currency), 385, y, 9, '#f2f0ea');
+    text(doc, money(item.totalMinor, input.currency), 475, y, 9, '#f2f0ea');
+  });
+  if (input.shippingMinor) text(doc, `Shipping: ${money(input.shippingMinor, input.currency)}`, 385, 747, 8, '#b8b8b2');
+}
+
+function footer(doc: PdfDoc, input: ReceiptPdfInput, isHe: boolean) {
+  if (isHe) {
+    text(doc, `מקור: ${input.source}`, 54, 726, 9, '#b8b8b2', { width: 486, align: 'right' });
+    text(doc, `Document hash: ${shortHash(input.documentHash)}`, 54, 745, 7, '#8a8a84');
+    text(doc, 'מסמך ממוחשב שנוצר לאחר אישור התשלום.', 54, 753, 9, '#b8b8b2', { width: 486, align: 'right' });
+    text(doc, 'הסכומים מוצגים ללא מע"מ עבור עוסק פטור.', 54, 771, 9, '#b8b8b2', { width: 486, align: 'right' });
+    return;
+  }
+  text(doc, `Source: ${input.source}`, 54, 726, 9, '#b8b8b2');
+  text(doc, `Document hash: ${shortHash(input.documentHash)}`, 54, 745, 7, '#8a8a84');
+  text(doc, 'This is a computerized receipt generated after payment confirmation.', 54, 753, 9, '#b8b8b2');
+  text(doc, 'Keep this document for your records. Amounts are shown without VAT for Osek Patur.', 54, 771, 9, '#b8b8b2');
+}
+
+function text(doc: PdfDoc, value: string, x: number, y: number, size: number, color: string, options: Record<string, unknown> = {}) {
+  doc.font('receipt').fontSize(size).fillColor(color).text(value, x, y, options);
+}
+
+function label(doc: PdfDoc, value: string, x: number, y: number, width = 222, align: 'left' | 'right' = 'left') {
+  text(doc, value, x, y, 9, '#b8b8b2', { width, align });
+}
+
+function rule(doc: PdfDoc, x: number, y: number, width: number) {
+  doc.moveTo(x, y).lineTo(x + width, y).strokeColor('#c8c7c1').lineWidth(1).stroke();
 }
 
 function money(amountMinor: number, currency: string) {
   return `${(amountMinor / 100).toFixed(2)} ${currency}`;
 }
 
-function orderItemRows(input: ReceiptPdfInput) {
-  const rows: string[] = [text('ORDER ITEMS', 54, 277, 9, '0.72 0.72 0.68')];
-  if (!input.lineItems?.length) {
-    rows.push(text('-', 54, 258, 10, '0.95 0.95 0.92'));
-    return rows;
-  }
-  rows.push(text('Item', 54, 258, 8, '0.55 0.55 0.52'));
-  rows.push(text('Qty', 331, 258, 8, '0.55 0.55 0.52'));
-  rows.push(text('Unit', 385, 258, 8, '0.55 0.55 0.52'));
-  rows.push(text('Total', 475, 258, 8, '0.55 0.55 0.52'));
-  input.lineItems.slice(0, 5).forEach((item, index) => {
-    const y = 239 - (index * 18);
-    const itemName = `${item.title}${item.size ? ` / ${item.size}` : ''}`;
-    rows.push(text(fit(itemName, 42), 54, y, 9, '0.95 0.95 0.92'));
-    rows.push(text(String(item.quantity), 331, y, 9, '0.95 0.95 0.92'));
-    rows.push(text(money(item.unitPriceMinor, input.currency), 385, y, 9, '0.95 0.95 0.92'));
-    rows.push(text(money(item.totalMinor, input.currency), 475, y, 9, '0.95 0.95 0.92'));
-  });
-  const footerY = 239 - (Math.min(input.lineItems.length, 5) * 18);
-  if (input.lineItems.length > 5) rows.push(text(`+ ${input.lineItems.length - 5} more line(s) in order snapshot`, 54, footerY, 8, '0.72 0.72 0.68'));
-  if (input.shippingMinor) rows.push(text(`Shipping: ${money(input.shippingMinor, input.currency)}`, 385, 177, 8, '0.72 0.72 0.68'));
-  return rows;
-}
-
-function rect(x: number, y: number, width: number, height: number, rgb: string) {
-  return `q ${rgb} rg ${x} ${y} ${width} ${height} re f Q`;
-}
-
-function text(value: string, x: number, y: number, size: number, rgb: string) {
-  return [
-    'BT',
-    `${rgb} rg`,
-    `/F1 ${size} Tf`,
-    `${x} ${y} Td`,
-    `(${pdfEscape(value)}) Tj`,
-    'ET',
-  ].join('\n');
-}
-
-function wrappedText(value: string, x: number, y: number, size: number, maxChars: number, lineHeight: number, rgb: string, maxLines = 4) {
-  return wrap(value, maxChars).slice(0, maxLines).map((line, index) => text(line, x, y - (index * lineHeight), size, rgb));
-}
-
-function wrap(value: string, maxChars: number) {
-  const words = value.replace(/\s+/g, ' ').trim().split(' ');
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else current = next;
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : ['-'];
-}
-
-function fit(value: string, maxChars: number) {
-  return value.length > maxChars ? `${value.slice(0, Math.max(0, maxChars - 3))}...` : value;
-}
-
-function pdfEscape(value: string) {
-  return value.replace(/[^\x20-\x7E]/g, '').replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+function shortHash(value: string) {
+  return value.length > 70 ? `${value.slice(0, 70)}...` : value;
 }
